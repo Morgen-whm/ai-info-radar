@@ -85,6 +85,47 @@ test("production package contains both weekly report D1 tables", async () => {
   assert.match(sql, /CREATE TABLE `weekly_report_items`/);
 });
 
+test("dashboard never substitutes fixed demo topics", async () => {
+  const worker = await loadWorker();
+  const response = await worker.fetch(
+    new Request("http://localhost/api/dashboard"),
+    testEnv,
+    testContext,
+  );
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.deepEqual(payload.hotTopics, []);
+  assert.equal(payload.stats.hotTopics, 0);
+});
+
+test("homepage, topics page and dashboard API no longer import demoTopics", async () => {
+  const files = await Promise.all(
+    [
+      "../app/page.tsx",
+      "../app/topics/page.tsx",
+      "../app/api/dashboard/route.ts",
+    ].map((path) => readFile(new URL(path, import.meta.url), "utf8")),
+  );
+  assert.ok(files.every((source) => !source.includes("demoTopics")));
+});
+
+test("weekly UI refresh rejects cross-site requests before database access", async () => {
+  const worker = await loadWorker();
+  const response = await worker.fetch(
+    new Request("http://localhost/api/weekly-reports/refresh-current", {
+      method: "POST",
+      headers: {
+        origin: "https://attacker.example",
+        "sec-fetch-site": "cross-site",
+      },
+    }),
+    testEnv,
+    testContext,
+  );
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), { error: "只允许站内操作" });
+});
+
 test("feed endpoint falls back to clearly defined demo content", async () => {
   const worker = await loadWorker();
   const response = await worker.fetch(

@@ -198,6 +198,19 @@ export interface WeeklyPeriod {
   weekStart: string;
 }
 
+export function currentWeekStartInShanghai(now = new Date()): string {
+  const localNow = new Date(now.getTime() + 8 * 60 * 60 * 1_000);
+  const localMidnightUtc = Date.UTC(
+    localNow.getUTCFullYear(),
+    localNow.getUTCMonth(),
+    localNow.getUTCDate(),
+  );
+  const daysSinceMonday = (localNow.getUTCDay() + 6) % 7;
+  return new Date(localMidnightUtc - daysSinceMonday * DAY_MS)
+    .toISOString()
+    .slice(0, 10);
+}
+
 interface RankedCandidate {
   item: ContentItem;
   category: string;
@@ -324,16 +337,15 @@ const candidateScore = (
     )
       ? 24
       : 0;
-  return Math.round(
-    (recommendationScore(item) +
-      freshness +
-      newsBonus +
-      officialBonus +
-      completenessBonus -
-      salesPromotionPenalty -
-      discussionPenalty) *
-      10,
-  ) / 10;
+  const score =
+    recommendationScore(item) +
+    freshness +
+    newsBonus +
+    officialBonus +
+    completenessBonus -
+    salesPromotionPenalty -
+    discussionPenalty;
+  return Math.round(Math.min(100, Math.max(0, score)) * 10) / 10;
 };
 
 const isStrongWeeklySignal = (item: ContentItem) => {
@@ -487,13 +499,15 @@ const clusterCandidates = (candidates: RankedCandidate[]) => {
     );
     cluster.score =
       Math.round(
-        (cluster.representative.baseScore +
-          Math.min(
-            10,
-            Math.max(0, platforms.size - 1) * 5 +
-              Math.max(0, cluster.candidates.length - 1) * 2,
-          )) *
-          10,
+        Math.min(
+          100,
+          cluster.representative.baseScore +
+            Math.min(
+              10,
+              Math.max(0, platforms.size - 1) * 5 +
+                Math.max(0, cluster.candidates.length - 1) * 2,
+            ),
+        ) * 10,
       ) / 10;
   }
   return clusters.sort((left, right) => right.score - left.score);

@@ -684,6 +684,35 @@ export async function getWeeklyReportStatus(
   };
 }
 
+export async function listWeeklyReportStatuses(
+  limit = 12,
+): Promise<WeeklyReportStatusResult[]> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const rows = await db
+    .prepare(
+      `SELECT id, week_start, week_end, timezone, status, generated_at,
+              item_count, error_message
+       FROM weekly_reports
+       ORDER BY week_start DESC, generated_at DESC
+       LIMIT ?`,
+    )
+    .bind(Math.min(52, Math.max(1, limit)))
+    .all<Row>();
+  return rows.results.map((row) => ({
+    reportId: String(row.id),
+    status: String(row.status) as WeeklyReportStatus,
+    period: {
+      start: String(row.week_start),
+      end: String(row.week_end),
+      timezone: "Asia/Shanghai",
+    },
+    generatedAt: row.generated_at ? String(row.generated_at) : null,
+    itemCount: Number(row.item_count ?? 0),
+    errorMessage: row.error_message ? String(row.error_message) : undefined,
+  }));
+}
+
 export async function beginWeeklyReport(
   reportId: string,
   start: string,

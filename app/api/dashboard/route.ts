@@ -2,7 +2,6 @@ import {
   demoDashboard,
   demoItems,
   demoJobs,
-  demoTopics,
 } from "@/lib/demo-data";
 import { getAppEnv } from "@/db/runtime";
 import {
@@ -11,17 +10,19 @@ import {
   listRecommendedContents,
   listSources,
 } from "@/db/repository";
+import { getLiveTopics } from "@/lib/live-topics";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const env = await getAppEnv();
   try {
-    const [sources, storedItems, storedJobs, contentStats] = await Promise.all([
+    const [sources, storedItems, storedJobs, contentStats, hotTopics] = await Promise.all([
       listSources(),
       listRecommendedContents(20),
       listJobs(20),
       getContentStats(),
+      getLiveTopics({ hours: 72, limit: 12 }),
     ]);
     const latestItems = storedItems.length ? storedItems : demoItems;
     const jobs = storedJobs.length ? storedJobs : demoJobs;
@@ -43,7 +44,7 @@ export async function GET() {
       sources,
       latestItems,
       jobs,
-      hotTopics: demoTopics,
+      hotTopics,
       stats: {
         ...demoDashboard.stats,
         contents24h:
@@ -52,6 +53,7 @@ export async function GET() {
             : demoDashboard.stats.contents24h,
         activeSources: sources.filter((source) => source.enabled).length,
         successRate,
+        hotTopics: hotTopics.length,
       },
       platformCounts:
         contentStats.total > 0
@@ -59,6 +61,13 @@ export async function GET() {
           : demoDashboard.platformCounts,
     });
   } catch {
-    return Response.json(demoDashboard);
+    return Response.json({
+      ...demoDashboard,
+      hotTopics: [],
+      stats: {
+        ...demoDashboard.stats,
+        hotTopics: 0,
+      },
+    });
   }
 }

@@ -8,6 +8,7 @@ const navItems = [
   { href: "/", label: "实时总览", mark: "⌁" },
   { href: "/feed", label: "信息流", mark: "≋" },
   { href: "/topics", label: "热点话题", mark: "↗" },
+  { href: "/weekly", label: "AI 周报", mark: "▦" },
   { href: "/sources", label: "监测源", mark: "◎" },
   { href: "/jobs", label: "采集任务", mark: "◫" },
   { href: "/settings", label: "系统设置", mark: "⚙" },

@@ -3,7 +3,6 @@ import type {
   ContentItem,
   DashboardSnapshot,
   Source,
-  Topic,
 } from "./types";
 
 const now = Date.now();
@@ -269,53 +268,6 @@ export const demoItems: ContentItem[] = [
   },
 ];
 
-export const demoTopics: Topic[] = [
-  {
-    id: "topic-codex",
-    title: "编码 Agent 进入长任务与闭环验证阶段",
-    summary: "Codex 与同类工具的讨论从生成质量转向持续执行、权限、回滚和可观测性。",
-    hotScore: 94,
-    momentum: 18.6,
-    platforms: ["x", "youtube"],
-    itemCount: 18,
-    updatedAt: ago(4),
-    tags: ["Codex", "Agent", "开发工具"],
-  },
-  {
-    id: "topic-models",
-    title: "模型竞争焦点从规模转向单位成本与可部署性",
-    summary: "开源模型、推理优化与真实工作流评测在多个平台同时升温。",
-    hotScore: 87,
-    momentum: 12.4,
-    platforms: ["x", "youtube", "linuxdo"],
-    itemCount: 31,
-    updatedAt: ago(7),
-    tags: ["大模型", "推理", "开源"],
-  },
-  {
-    id: "topic-vps",
-    title: "AI 服务部署带动洛杉矶 VPS 线路讨论",
-    summary: "稳定性、出口信誉、API 可达性和容灾成为选型中的关键变量。",
-    hotScore: 82,
-    momentum: 9.8,
-    platforms: ["linuxdo", "x"],
-    itemCount: 14,
-    updatedAt: ago(28),
-    tags: ["VPS", "网络", "部署"],
-  },
-  {
-    id: "topic-payment",
-    title: "海外订阅支付渠道与风险控制",
-    summary: "虚拟卡、U 币与账号风控信息更新快，社区更强调小额测试和多路径备份。",
-    hotScore: 78,
-    momentum: 7.1,
-    platforms: ["linuxdo", "x"],
-    itemCount: 11,
-    updatedAt: ago(32),
-    tags: ["开卡", "U币", "订阅"],
-  },
-];
-
 export const demoJobs: CollectionJob[] = [
   {
     id: "job-1",
@@ -373,7 +325,7 @@ export const demoDashboard: DashboardSnapshot = {
   generatedAt: new Date(now).toISOString(),
   stats: {
     contents24h: 348,
-    hotTopics: 12,
+    hotTopics: 0,
     activeSources: 9,
     successRate: 96.8,
     apiRequestsToday: 426,
@@ -386,7 +338,7 @@ export const demoDashboard: DashboardSnapshot = {
     idcflare: 0,
     gitlab: 0,
   },
-  hotTopics: demoTopics,
+  hotTopics: [],
   latestItems: demoItems,
   sources: demoSources,
   jobs: demoJobs,

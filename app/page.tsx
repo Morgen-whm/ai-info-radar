@@ -11,8 +11,9 @@ import {
   listRecommendedContents,
   listSources,
 } from "@/db/repository";
-import type { CollectionJob, Platform, Source } from "@/lib/types";
+import type { CollectionJob, Platform, Source, Topic } from "@/lib/types";
 import { QuickSyncButton } from "@/components/QuickSyncButton";
+import { getLiveTopics } from "@/lib/live-topics";
 
 export const metadata: Metadata = {
   title: "实时总览",
@@ -48,14 +49,16 @@ export default async function DashboardPage() {
   let contents24h = demoDashboard.stats.contents24h;
   let platformCounts = demoDashboard.platformCounts;
   let usingStoredData = false;
+  let hotTopics: Topic[] = [];
 
   try {
-    const [storedItems, storedSources, storedJobs, contentStats] =
+    const [storedItems, storedSources, storedJobs, contentStats, storedTopics] =
       await Promise.all([
         listRecommendedContents(20),
         listSources(),
         listJobs(30),
         getContentStats(),
+        getLiveTopics({ hours: 72, limit: 12 }),
       ]);
     sources = storedSources;
     jobs = storedJobs;
@@ -66,6 +69,7 @@ export default async function DashboardPage() {
       platformCounts = contentStats.platformCounts;
       usingStoredData = true;
     }
+    hotTopics = storedTopics;
   } catch {
     // The dashboard keeps its demo fallback when the local DB is unavailable.
   }
@@ -176,34 +180,41 @@ export default async function DashboardPage() {
             title="正在加速的话题"
             action={{ label: "查看全部", href: "/topics" }}
           />
-          <div className="topic-list">
-            {demoDashboard.hotTopics.slice(0, 4).map((topic, index) => (
-              <Link href={`/topics#${topic.id}`} className="topic-row" key={topic.id}>
-                <span className="topic-rank">{String(index + 1).padStart(2, "0")}</span>
-                <div className="topic-main">
-                  <div className="topic-title-line">
-                    <h3>{topic.title}</h3>
-                    <span className="momentum">↑ {topic.momentum}%</span>
-                  </div>
-                  <p>{topic.summary}</p>
-                  <div className="topic-meta">
-                    <div className="platform-stack">
-                      {topic.platforms.map((platform) => (
-                        <PlatformBadge
-                          key={platform}
-                          platform={platform}
-                          compact
-                        />
-                      ))}
+          {hotTopics.length ? (
+            <div className="topic-list">
+              {hotTopics.slice(0, 4).map((topic, index) => (
+                <Link href={`/topics#${topic.id}`} className="topic-row" key={topic.id}>
+                  <span className="topic-rank">{String(index + 1).padStart(2, "0")}</span>
+                  <div className="topic-main">
+                    <div className="topic-title-line">
+                      <h3>{topic.title}</h3>
+                      <span className="momentum">趋势 {topic.momentum}</span>
                     </div>
-                    <span>{topic.itemCount} 条内容</span>
-                    <span>{formatRelativeTime(topic.updatedAt)}</span>
+                    <p>{topic.summary}</p>
+                    <div className="topic-meta">
+                      <div className="platform-stack">
+                        {topic.platforms.map((platform) => (
+                          <PlatformBadge
+                            key={platform}
+                            platform={platform}
+                            compact
+                          />
+                        ))}
+                      </div>
+                      <span>{topic.itemCount} 条内容</span>
+                      <span>{formatRelativeTime(topic.updatedAt)}</span>
+                    </div>
                   </div>
-                </div>
-                <span className="hot-score">{topic.hotScore}</span>
-              </Link>
-            ))}
-          </div>
+                  <span className="hot-score">{topic.hotScore}</span>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state compact-empty">
+              <strong>最近 72 小时暂无有效热点</strong>
+              <p>完成一次真实采集后，跨来源话题会自动出现在这里。</p>
+            </div>
+          )}
         </div>
 
         <aside className="panel signal-panel">

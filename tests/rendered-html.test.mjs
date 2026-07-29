@@ -48,6 +48,7 @@ test("server-renders the main product routes", async () => {
   for (const [path, expected] of [
     ["/feed", "实时信息流"],
     ["/topics", "热点话题"],
+    ["/weekly", "AI 周报"],
     ["/sources", "一键采集全部"],
     ["/jobs", "采集任务"],
     ["/settings", "系统设置"],
