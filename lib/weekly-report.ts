@@ -260,12 +260,19 @@ const candidateScore = (
   const completenessBonus =
     (item.authorName && item.authorName !== "未知作者" ? 2 : 0) +
     (item.aiSummary ? 2 : 0);
+  const salesPromotionPenalty =
+    /补货|促销|优惠码|折扣|低至|月付|年付|限量|上车|\bdeal\b|\bcoupon\b|\bpromo\b|\bstarting at\b/.test(
+      text,
+    )
+      ? 18
+      : 0;
   return Math.round(
     (recommendationScore(item) +
       freshness +
       newsBonus +
       officialBonus +
-      completenessBonus) *
+      completenessBonus -
+      salesPromotionPenalty) *
       10,
   ) / 10;
 };
@@ -499,7 +506,7 @@ const overviewFrom = (stats: WeeklyReportStats) => {
   if (!stats.selected) {
     return `本周扫描到 ${stats.candidates} 条相关候选，但没有内容达到周报入选标准。`;
   }
-  return `本周从 ${stats.candidates} 条高相关候选中精选 ${stats.selected} 条，重点集中在${categories.join("、")}。`;
+  return `本周从 ${stats.candidates} 条高相关候选中精选 ${stats.selected} 条，重点集中在：${categories.join("、")}。`;
 };
 
 const sha256 = async (value: string) => {
@@ -559,7 +566,9 @@ export async function generateWeeklyReport(options?: {
                   candidate.item.platform === "gitlab"),
             );
     const selected = balancedSelection(clusterCandidates(candidates));
-    const topics = selected.map(clusterToTopic);
+    const topics = selected.map((cluster, index) =>
+      clusterToTopic(cluster, index + 1),
+    );
     const stats = reportStats(candidates, topics);
     const generatedAt = now.toISOString();
     const contentHash = await sha256(
