@@ -232,12 +232,16 @@ export function resolveWeeklyPeriod(
 }
 
 const classify = (item: ContentItem) => {
+  const title = `${item.title} ${item.tags.join(" ")}`.toLowerCase();
   const text = `${item.title} ${item.body} ${item.tags.join(" ")}`.toLowerCase();
-  return (
-    categoryRules.find((rule) =>
-      rule.terms.some((term) => text.includes(term)),
-    )?.category ?? "大模型与产品发布"
-  );
+  const matched = categoryRules.find((rule) => {
+    const searchable =
+      rule.category === "安全事件" && item.platform !== "gitlab"
+        ? title
+        : text;
+    return rule.terms.some((term) => searchable.includes(term));
+  });
+  return matched?.category ?? "大模型与产品发布";
 };
 
 const candidateScore = (
@@ -266,13 +270,20 @@ const candidateScore = (
     )
       ? 18
       : 0;
+  const discussionPenalty =
+    /求推荐|求助|请问|怎么(?:办|样)|如何|有没有|有人知道|送.{0,20}免费|免费.{0,20}送|中转站/.test(
+      item.title.toLowerCase(),
+    )
+      ? 24
+      : 0;
   return Math.round(
     (recommendationScore(item) +
       freshness +
       newsBonus +
       officialBonus +
       completenessBonus -
-      salesPromotionPenalty) *
+      salesPromotionPenalty -
+      discussionPenalty) *
       10,
   ) / 10;
 };
@@ -545,6 +556,7 @@ export async function generateWeeklyReport(options?: {
       .filter(
         (candidate) =>
           candidate.item.hotScore >= MIN_VALUE_SCORE &&
+          candidate.baseScore >= 60 &&
           (candidate.topics.length > 0 ||
             candidate.item.platform === "gitlab"),
       );
@@ -562,6 +574,7 @@ export async function generateWeeklyReport(options?: {
             .filter(
               (candidate) =>
                 candidate.item.hotScore >= 42 &&
+                candidate.baseScore >= 52 &&
                 (candidate.topics.length > 0 ||
                   candidate.item.platform === "gitlab"),
             );
