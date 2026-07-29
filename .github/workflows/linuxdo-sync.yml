@@ -1,0 +1,79 @@
+name: Linux.do scheduled collection
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linuxdo-production-sync
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SITE_URL: ${{ secrets.SITE_URL }}
+      SITES_BYPASS_TOKEN: ${{ secrets.SITES_BYPASS_TOKEN }}
+    steps:
+      - name: Fetch Linux.do RSS and sync production
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${SITE_URL}" || -z "${SITES_BYPASS_TOKEN}" ]]; then
+            echo "Required production secrets are not configured."
+            exit 1
+          fi
+
+          sync_feed() {
+            local source_id="$1"
+            local feed_url="$2"
+            local feed_file
+            local payload_file
+            feed_file="$(mktemp)"
+            payload_file="$(mktemp)"
+
+            curl \
+              --silent \
+              --show-error \
+              --fail \
+              --location \
+              --retry 3 \
+              --retry-all-errors \
+              --connect-timeout 10 \
+              --max-time 45 \
+              --user-agent "TrendHub RSS Collector/1.0" \
+              "${feed_url}" \
+              --output "${feed_file}"
+
+            if ! grep -Eq "<(rss|feed)([ >])" "${feed_file}"; then
+              echo "Linux.do returned an invalid RSS document."
+              exit 1
+            fi
+
+            jq \
+              --null-input \
+              --arg sourceId "${source_id}" \
+              --rawfile linuxRssXml "${feed_file}" \
+              '{sourceId: $sourceId, linuxRssXml: $linuxRssXml}' \
+              > "${payload_file}"
+
+            curl \
+              --silent \
+              --show-error \
+              --fail-with-body \
+              --request POST \
+              --header "OAI-Sites-Authorization: Bearer ${SITES_BYPASS_TOKEN}" \
+              --header "Content-Type: application/json" \
+              --data-binary "@${payload_file}" \
+              "${SITE_URL}/api/sync"
+
+            rm -f "${feed_file}" "${payload_file}"
+          }
+
+          sync_feed "src-linuxdo-latest" "https://linux.do/latest.rss"
+          sync_feed "src-linuxdo-top" "https://linux.do/top.rss?period=daily"

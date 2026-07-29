@@ -141,9 +141,13 @@ Authorization: Bearer <CRON_SECRET>
 
 ## 定时任务
 
-Cloudflare Worker 部署已配置每五分钟触发一次 `scheduled` handler。没有配置
+Cloudflare Worker 部署已配置每五分钟触发一次 `scheduled` handler。由于
+Linux.do 会按云端出口网络启用访问防护，正式站点使用私有 GitHub Actions
+定时任务读取其公开 RSS，并通过 Sites 私有访问令牌写入同一个 D1；Cloudflare
+定时任务负责 IDCFlare、GitLab 以及配置服务端 Token 后的 X / YouTube。
+没有配置
 服务端 `TIKHUB_TOKEN` 时，后台任务会跳过 X / YouTube，但仍会定时采集
-Linux.do、IDCFlare 和 GitLab；浏览器内的手动采集仍可使用个人 TikHub Key。
+IDCFlare 和 GitLab；浏览器内的手动采集仍可使用个人 TikHub Key。
 部署到美国洛杉矶
 Node 服务器时，`npm start` 也会启动受限 Linux.do RSS 代理，可用系统
 Cron 每五分钟调用：

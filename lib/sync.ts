@@ -87,6 +87,18 @@ export async function syncAllDueSources(env: AppEnv) {
       : 0;
     const due = Date.now() - last >= source.intervalMinutes * 60_000;
     if (!due) continue;
+    if (
+      source.platform === "linuxdo" &&
+      env.LINUXDO_SCHEDULE_MODE === "external"
+    ) {
+      results.push({
+        sourceId: source.id,
+        ok: true,
+        skipped: true,
+        error: "Linux.do 由外部 RSS 定时任务采集",
+      });
+      continue;
+    }
     const needsServerTikHubToken =
       source.platform === "x" || source.platform === "youtube";
     if (needsServerTikHubToken && !env.TIKHUB_TOKEN) {

@@ -10,6 +10,7 @@ interface Env {
   TIKHUB_BASE_URL?: string;
   TIKHUB_TOKEN?: string;
   TIKHUB_KEY_ENCRYPTION_SECRET?: string;
+  LINUXDO_SCHEDULE_MODE?: "direct" | "external";
   AI_BASE_URL?: string;
   AI_API_KEY?: string;
   AI_MODEL?: string;

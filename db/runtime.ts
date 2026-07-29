@@ -6,6 +6,7 @@ export interface AppEnv {
   TIKHUB_KEY_ENCRYPTION_SECRET?: string;
   RSS_PROXY_URL?: string;
   LINUXDO_PROXY_URL?: string;
+  LINUXDO_SCHEDULE_MODE?: "direct" | "external";
   AI_BASE_URL?: string;
   AI_API_KEY?: string;
   AI_MODEL?: string;
@@ -27,6 +28,10 @@ export async function getAppEnv(): Promise<AppEnv> {
         process.env.TIKHUB_KEY_ENCRYPTION_SECRET,
       RSS_PROXY_URL: process.env.RSS_PROXY_URL,
       LINUXDO_PROXY_URL: process.env.LINUXDO_PROXY_URL,
+      LINUXDO_SCHEDULE_MODE:
+        process.env.LINUXDO_SCHEDULE_MODE === "external"
+          ? "external"
+          : "direct",
       AI_BASE_URL: process.env.AI_BASE_URL,
       AI_API_KEY: process.env.AI_API_KEY,
       AI_MODEL: process.env.AI_MODEL,
