@@ -15,6 +15,13 @@
       "when": 1785303242601,
       "tag": "0001_heavy_stature",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785305577161,
+      "tag": "0002_thick_preak",
+      "breakpoints": true
     }
   ]
 }

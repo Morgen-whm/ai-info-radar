@@ -107,6 +107,7 @@ AI_API_KEY=你的_AI_Key
 AI_MODEL=gpt-5-mini
 
 CRON_SECRET=生成一个足够长的随机字符串
+WEEKLY_API_KEY=至少_32_个字符的独立随机字符串
 ```
 
 美国洛杉矶服务器应使用 `https://api.tikhub.io`。切换真实模式前，先保留少量监测源进行费用和字段兼容测试。
@@ -132,12 +133,28 @@ CRON_SECRET=生成一个足够长的随机字符串
 - `GET|POST|DELETE /api/settings/tikhub`
 - `GET /api/jobs`
 - `POST /api/internal/cron`
+- `POST /api/v1/weekly-reports/refresh`
+- `GET /api/v1/weekly-reports/latest`
+- `GET /api/v1/weekly-reports/:reportId`
+- `GET /api/v1/weekly-reports/:reportId/status`
 
 生产环境应携带：
 
 ```http
 Authorization: Bearer <CRON_SECRET>
 ```
+
+周报 API 使用独立的服务间密钥：
+
+```http
+Authorization: Bearer <WEEKLY_API_KEY>
+```
+
+`refresh` 默认生成上一个完整的北京时间自然周。也可以提交
+`{"weekStart":"2026-07-27","force":true}` 生成或重建指定周一开始的周报。
+报告会固定保存筛选后的标题、摘要、入选依据、视频选题角度、热度分和最多
+三个来源，供视频项目重复读取。正式站点为私有 Sites 时，外部调用还需同时
+携带 `OAI-Sites-Authorization` 私有访问令牌。
 
 ## 定时任务
 
@@ -147,6 +164,7 @@ GitHub Actions 定时任务读取其公开 RSS，并在受限时使用只读文�
 令牌写入同一个 D1；任务随后调用受 `CRON_SECRET` 保护的后台入口采集
 IDCFlare、GitLab 以及配置服务端 Token 后的 X / YouTube。Cloudflare
 自身的五分钟触发也保留为冗余调度。
+每周一北京时间 08:10 会在采集任务完成后生成上一个完整自然周的周报快照。
 没有配置
 服务端 `TIKHUB_TOKEN` 时，后台任务会跳过 X / YouTube，但仍会定时采集
 IDCFlare 和 GitLab；浏览器内的手动采集仍可使用个人 TikHub Key。

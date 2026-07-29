@@ -111,3 +111,62 @@ export interface ConnectorResult {
   nextCursor?: string;
   billable: boolean;
 }
+
+export type WeeklyReportStatus = "generating" | "ready" | "failed";
+
+export interface WeeklyReportSource {
+  contentId: string;
+  platform: Platform;
+  sourceName?: string;
+  title: string;
+  url: string;
+  authorName: string;
+  publishedAt: string;
+  hotScore: number;
+}
+
+export interface WeeklyReportTopic {
+  id: string;
+  rank: number;
+  category: string;
+  headline: string;
+  summary: string;
+  whyItMatters: string;
+  videoAngle: string;
+  score: number;
+  hotScore: number;
+  keywords: string[];
+  sources: WeeklyReportSource[];
+}
+
+export interface WeeklyReportStats {
+  candidates: number;
+  selected: number;
+  platformCounts: Partial<Record<Platform, number>>;
+  categoryCounts: Record<string, number>;
+}
+
+export interface WeeklyReport {
+  reportId: string;
+  status: WeeklyReportStatus;
+  period: {
+    start: string;
+    end: string;
+    timezone: "Asia/Shanghai";
+  };
+  generatedAt: string | null;
+  overview: string;
+  contentHash: string | null;
+  stats: WeeklyReportStats;
+  topics: WeeklyReportTopic[];
+  errorMessage?: string;
+}
+
+export interface WeeklyReportStatusResult {
+  reportId: string;
+  status: WeeklyReportStatus;
+  period: WeeklyReport["period"];
+  generatedAt: string | null;
+  itemCount: number;
+  errorMessage?: string;
+}

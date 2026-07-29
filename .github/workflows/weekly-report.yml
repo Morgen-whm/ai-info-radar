@@ -1,0 +1,54 @@
+name: Generate weekly intelligence report
+
+on:
+  schedule:
+    - cron: "10 0 * * 1"
+  workflow_dispatch:
+    inputs:
+      week_start:
+        description: "Optional Monday in YYYY-MM-DD format"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-intelligence-report
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SITE_URL: ${{ secrets.SITE_URL }}
+      SITES_BYPASS_TOKEN: ${{ secrets.SITES_BYPASS_TOKEN }}
+      WEEKLY_API_KEY: ${{ secrets.WEEKLY_API_KEY }}
+      WEEK_START: ${{ inputs.week_start }}
+    steps:
+      - name: Build the protected weekly report snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${SITE_URL}" || -z "${SITES_BYPASS_TOKEN}" || -z "${WEEKLY_API_KEY}" ]]; then
+            echo "Required production secrets are not configured."
+            exit 1
+          fi
+
+          request_body="{}"
+          if [[ -n "${WEEK_START:-}" ]]; then
+            request_body="$(jq --null-input --arg weekStart "${WEEK_START}" \
+              '{weekStart: $weekStart, force: true}')"
+          fi
+
+          curl \
+            --silent \
+            --show-error \
+            --fail-with-body \
+            --request POST \
+            --header "OAI-Sites-Authorization: Bearer ${SITES_BYPASS_TOKEN}" \
+            --header "Authorization: Bearer ${WEEKLY_API_KEY}" \
+            --header "Content-Type: application/json" \
+            --data-binary "${request_body}" \
+            "${SITE_URL}/api/v1/weekly-reports/refresh"

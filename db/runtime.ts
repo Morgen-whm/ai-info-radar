@@ -13,6 +13,7 @@ export interface AppEnv {
   AI_MODEL?: string;
   DATA_MODE?: "demo" | "live";
   CRON_SECRET?: string;
+  WEEKLY_API_KEY?: string;
 }
 
 export async function getAppEnv(): Promise<AppEnv> {
@@ -41,6 +42,7 @@ export async function getAppEnv(): Promise<AppEnv> {
       AI_API_KEY: process.env.AI_API_KEY,
       AI_MODEL: process.env.AI_MODEL,
       CRON_SECRET: process.env.CRON_SECRET,
+      WEEKLY_API_KEY: process.env.WEEKLY_API_KEY,
     };
   }
 }
@@ -127,6 +129,36 @@ const schemaStatements = [
     estimated_cost_usd REAL NOT NULL DEFAULT 0,
     UNIQUE(date, provider, route)
   )`,
+  `CREATE TABLE IF NOT EXISTS weekly_reports (
+    id TEXT PRIMARY KEY,
+    week_start TEXT NOT NULL,
+    week_end TEXT NOT NULL,
+    timezone TEXT NOT NULL DEFAULT 'Asia/Shanghai',
+    status TEXT NOT NULL DEFAULT 'generating',
+    overview TEXT NOT NULL DEFAULT '',
+    content_hash TEXT,
+    item_count INTEGER NOT NULL DEFAULT 0,
+    stats_json TEXT NOT NULL DEFAULT '{}',
+    generated_at TEXT,
+    error_message TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS weekly_reports_period_idx ON weekly_reports(week_start, week_end)`,
+  `CREATE INDEX IF NOT EXISTS weekly_reports_status_idx ON weekly_reports(status)`,
+  `CREATE INDEX IF NOT EXISTS weekly_reports_generated_idx ON weekly_reports(generated_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS weekly_report_items (
+    id TEXT PRIMARY KEY,
+    report_id TEXT NOT NULL,
+    content_id TEXT NOT NULL,
+    rank INTEGER NOT NULL,
+    category TEXT NOT NULL,
+    score REAL NOT NULL,
+    item_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(report_id, rank)
+  )`,
+  `CREATE INDEX IF NOT EXISTS weekly_report_items_content_idx ON weekly_report_items(content_id)`,
 ];
 
 let schemaReady = false;

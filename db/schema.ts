@@ -125,3 +125,48 @@ export const apiUsageDaily = sqliteTable(
     ),
   ],
 );
+
+export const weeklyReports = sqliteTable(
+  "weekly_reports",
+  {
+    id: text("id").primaryKey(),
+    weekStart: text("week_start").notNull(),
+    weekEnd: text("week_end").notNull(),
+    timezone: text("timezone").notNull().default("Asia/Shanghai"),
+    status: text("status").notNull().default("generating"),
+    overview: text("overview").notNull().default(""),
+    contentHash: text("content_hash"),
+    itemCount: integer("item_count").notNull().default(0),
+    statsJson: text("stats_json").notNull().default("{}"),
+    generatedAt: text("generated_at"),
+    errorMessage: text("error_message"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    index("weekly_reports_period_idx").on(table.weekStart, table.weekEnd),
+    index("weekly_reports_status_idx").on(table.status),
+    index("weekly_reports_generated_idx").on(table.generatedAt),
+  ],
+);
+
+export const weeklyReportItems = sqliteTable(
+  "weekly_report_items",
+  {
+    id: text("id").primaryKey(),
+    reportId: text("report_id").notNull(),
+    contentId: text("content_id").notNull(),
+    rank: integer("rank").notNull(),
+    category: text("category").notNull(),
+    score: real("score").notNull(),
+    itemJson: text("item_json").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("weekly_report_items_report_rank_idx").on(
+      table.reportId,
+      table.rank,
+    ),
+    index("weekly_report_items_content_idx").on(table.contentId),
+  ],
+);

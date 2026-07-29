@@ -16,6 +16,7 @@ interface Env {
   AI_API_KEY?: string;
   AI_MODEL?: string;
   CRON_SECRET?: string;
+  WEEKLY_API_KEY?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {

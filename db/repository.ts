@@ -6,6 +6,11 @@ import type {
   Platform,
   Source,
   SourceKind,
+  WeeklyReport,
+  WeeklyReportStats,
+  WeeklyReportStatus,
+  WeeklyReportStatusResult,
+  WeeklyReportTopic,
 } from "@/lib/types";
 import {
   calculateContentValueScore,
@@ -314,6 +319,33 @@ export async function listContents(limit = 50): Promise<ContentItem[]> {
   return result.results.map(contentFromRow);
 }
 
+export async function listContentsByPeriod(
+  start: string,
+  end: string,
+  limit = 2_000,
+): Promise<ContentItem[]> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const result = await db
+    .prepare(
+      `SELECT c.*, s.name AS source_name, s.target AS source_target
+       FROM contents c
+       LEFT JOIN sources s ON s.id = c.source_id
+       WHERE c.published_at >= ? AND c.published_at < ?
+       ORDER BY c.published_at DESC, c.hot_score DESC
+       LIMIT ?`,
+    )
+    .bind(start, end, Math.min(5_000, Math.max(1, limit)))
+    .all<Row>();
+  return result.results.map((row) => {
+    const item = contentFromRow(row);
+    // Weekly selection must retain the value measured when the item was
+    // collected instead of penalizing an early-week story again on Monday.
+    item.hotScore = Math.max(item.hotScore, Number(row.hot_score ?? 0));
+    return item;
+  });
+}
+
 export async function listRecommendedContents(
   limit = 50,
 ): Promise<ContentItem[]> {
@@ -546,4 +578,203 @@ export async function listJobs(limit = 30): Promise<CollectionJob[]> {
     .bind(Math.min(100, Math.max(1, limit)))
     .all<Row>();
   return result.results.map(jobFromRow);
+}
+
+const emptyWeeklyStats = (): WeeklyReportStats => ({
+  candidates: 0,
+  selected: 0,
+  platformCounts: {},
+  categoryCounts: {},
+});
+
+const weeklyReportFromRow = (
+  row: Row,
+  topics: WeeklyReportTopic[],
+): WeeklyReport => ({
+  reportId: String(row.id),
+  status: String(row.status) as WeeklyReportStatus,
+  period: {
+    start: String(row.week_start),
+    end: String(row.week_end),
+    timezone: "Asia/Shanghai",
+  },
+  generatedAt: row.generated_at ? String(row.generated_at) : null,
+  overview: String(row.overview ?? ""),
+  contentHash: row.content_hash ? String(row.content_hash) : null,
+  stats: parseJson<WeeklyReportStats>(row.stats_json, emptyWeeklyStats()),
+  topics,
+  errorMessage: row.error_message ? String(row.error_message) : undefined,
+});
+
+async function loadWeeklyTopics(
+  db: D1Database,
+  reportId: string,
+): Promise<WeeklyReportTopic[]> {
+  const rows = await db
+    .prepare(
+      `SELECT item_json
+       FROM weekly_report_items
+       WHERE report_id = ?
+       ORDER BY rank ASC`,
+    )
+    .bind(reportId)
+    .all<Row>();
+  return rows.results
+    .map((row) => parseJson<WeeklyReportTopic | null>(row.item_json, null))
+    .filter((topic): topic is WeeklyReportTopic => topic !== null);
+}
+
+export async function getWeeklyReport(
+  reportId: string,
+): Promise<WeeklyReport | null> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const row = await db
+    .prepare("SELECT * FROM weekly_reports WHERE id = ?")
+    .bind(reportId)
+    .first<Row>();
+  if (!row) return null;
+  const topics = await loadWeeklyTopics(db, reportId);
+  return weeklyReportFromRow(row, topics);
+}
+
+export async function getLatestWeeklyReport(): Promise<WeeklyReport | null> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const row = await db
+    .prepare(
+      `SELECT *
+       FROM weekly_reports
+       WHERE status = 'ready'
+       ORDER BY week_end DESC, generated_at DESC
+       LIMIT 1`,
+    )
+    .first<Row>();
+  if (!row) return null;
+  const reportId = String(row.id);
+  return weeklyReportFromRow(row, await loadWeeklyTopics(db, reportId));
+}
+
+export async function getWeeklyReportStatus(
+  reportId: string,
+): Promise<WeeklyReportStatusResult | null> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const row = await db
+    .prepare(
+      `SELECT id, week_start, week_end, timezone, status, generated_at,
+              item_count, error_message
+       FROM weekly_reports
+       WHERE id = ?`,
+    )
+    .bind(reportId)
+    .first<Row>();
+  if (!row) return null;
+  return {
+    reportId: String(row.id),
+    status: String(row.status) as WeeklyReportStatus,
+    period: {
+      start: String(row.week_start),
+      end: String(row.week_end),
+      timezone: "Asia/Shanghai",
+    },
+    generatedAt: row.generated_at ? String(row.generated_at) : null,
+    itemCount: Number(row.item_count ?? 0),
+    errorMessage: row.error_message ? String(row.error_message) : undefined,
+  };
+}
+
+export async function beginWeeklyReport(
+  reportId: string,
+  start: string,
+  end: string,
+): Promise<void> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const now = new Date().toISOString();
+  await db
+    .prepare(
+      `INSERT INTO weekly_reports (
+        id, week_start, week_end, timezone, status, overview, item_count,
+        stats_json, created_at, updated_at
+       ) VALUES (?, ?, ?, 'Asia/Shanghai', 'generating', '', 0, '{}', ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         week_start = excluded.week_start,
+         week_end = excluded.week_end,
+         status = 'generating',
+         error_message = NULL,
+         updated_at = excluded.updated_at`,
+    )
+    .bind(reportId, start, end, now, now)
+    .run();
+}
+
+export async function completeWeeklyReport(
+  report: WeeklyReport,
+): Promise<void> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const now = new Date().toISOString();
+  const statements = [
+    db
+      .prepare("DELETE FROM weekly_report_items WHERE report_id = ?")
+      .bind(report.reportId),
+    ...report.topics.map((topic) =>
+      db
+        .prepare(
+          `INSERT INTO weekly_report_items (
+            id, report_id, content_id, rank, category, score, item_json, created_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          `${report.reportId}-item-${topic.rank}`,
+          report.reportId,
+          topic.sources[0]?.contentId ?? topic.id,
+          topic.rank,
+          topic.category,
+          topic.score,
+          JSON.stringify(topic),
+          now,
+        ),
+    ),
+    db
+      .prepare(
+        `UPDATE weekly_reports
+         SET status = 'ready',
+             overview = ?,
+             content_hash = ?,
+             item_count = ?,
+             stats_json = ?,
+             generated_at = ?,
+             error_message = NULL,
+             updated_at = ?
+         WHERE id = ?`,
+      )
+      .bind(
+        report.overview,
+        report.contentHash,
+        report.topics.length,
+        JSON.stringify(report.stats),
+        report.generatedAt,
+        now,
+        report.reportId,
+      ),
+  ];
+  await db.batch(statements);
+}
+
+export async function failWeeklyReport(
+  reportId: string,
+  message: string,
+): Promise<void> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  await db
+    .prepare(
+      `UPDATE weekly_reports
+       SET status = 'failed', error_message = ?, updated_at = ?
+       WHERE id = ?`,
+    )
+    .bind(message.slice(0, 500), new Date().toISOString(), reportId)
+    .run();
 }

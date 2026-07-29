@@ -60,6 +60,31 @@ test("cron endpoint fails closed when its production secret is missing", async (
   });
 });
 
+test("weekly report API fails closed before database access when its key is missing", async () => {
+  const worker = await loadWorker();
+  const response = await worker.fetch(
+    new Request("http://localhost/api/v1/weekly-reports/latest"),
+    testEnv,
+    testContext,
+  );
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), {
+    error: "周报 API 尚未配置",
+  });
+});
+
+test("production package contains both weekly report D1 tables", async () => {
+  const sql = await readFile(
+    new URL(
+      "../dist/.openai/drizzle/0002_thick_preak.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(sql, /CREATE TABLE `weekly_reports`/);
+  assert.match(sql, /CREATE TABLE `weekly_report_items`/);
+});
+
 test("feed endpoint falls back to clearly defined demo content", async () => {
   const worker = await loadWorker();
   const response = await worker.fetch(
