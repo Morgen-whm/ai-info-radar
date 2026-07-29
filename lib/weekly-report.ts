@@ -20,7 +20,7 @@ import type {
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const MAX_TOPICS = 12;
-const MIN_VALUE_SCORE = 52;
+const MIN_VALUE_SCORE = 48;
 const TIMEZONE = "Asia/Shanghai" as const;
 
 const categoryRules = [
@@ -126,6 +126,48 @@ const newsTerms = [
   "正式版",
 ];
 
+const strongHeadlineTerms = [
+  "release",
+  "released",
+  "launch",
+  "launched",
+  "introducing",
+  "announce",
+  "announced",
+  "unveil",
+  "update",
+  "updated",
+  "benchmark",
+  "security",
+  "vulnerability",
+  "outage",
+  "error",
+  "发布",
+  "推出",
+  "上线",
+  "更新",
+  "开源",
+  "适配",
+  "宣布",
+  "正式",
+  "更名",
+  "改名",
+  "攻击",
+  "漏洞",
+  "补丁",
+  "报错",
+  "故障",
+  "重置",
+  "封禁",
+  "被封",
+  "验证银行卡",
+  "涨价",
+  "降价",
+  "补货",
+  "上新",
+  "测评",
+];
+
 const whyItMattersByCategory: Record<string, string> = {
   "大模型与产品发布":
     "这类变化会直接影响模型能力、产品选择和下一阶段 AI 应用机会。",
@@ -168,6 +210,12 @@ interface StoryCluster {
   representative: RankedCandidate;
   candidates: RankedCandidate[];
   score: number;
+}
+
+interface StorySignature {
+  key: string;
+  entity: string;
+  event: "reset" | "ban" | "error" | "security" | "release" | "pricing";
 }
 
 const dateOnlyInShanghai = (date: Date) => {
@@ -268,10 +316,10 @@ const candidateScore = (
     /补货|促销|优惠码|折扣|低至|月付|年付|限量|上车|\bdeal\b|\bcoupon\b|\bpromo\b|\bstarting at\b/.test(
       text,
     )
-      ? 18
+      ? 28
       : 0;
   const discussionPenalty =
-    /求推荐|求助|请问|怎么(?:办|样)|如何|有没有|有人知道|送.{0,20}免费|免费.{0,20}送|中转站/.test(
+    /求推荐|求助|请问|怎么(?:办|样)|如何|有没有|有人知道|会不会|能不能|是否可以|送.{0,20}免费|免费.{0,20}送/.test(
       item.title.toLowerCase(),
     )
       ? 24
@@ -286,6 +334,22 @@ const candidateScore = (
       discussionPenalty) *
       10,
   ) / 10;
+};
+
+const isStrongWeeklySignal = (item: ContentItem) => {
+  if (item.platform === "gitlab") return true;
+  const title = item.title.toLowerCase();
+  const lowValueDiscussion =
+    /求推荐|求助|请教|需要一台|想出一台|想拼|拼车|人找车|车找人|会不会|能不能|多少合适|何去何从|手把手|保姆级/.test(
+      title,
+    );
+  const concreteIncident =
+    /报错|故障|攻击|漏洞|重置|封禁|被封|outage|error|vulnerability|attack/.test(
+      title,
+    );
+  if (lowValueDiscussion && !concreteIncident) return false;
+  if (/[?？]$/.test(title) && !concreteIncident) return false;
+  return strongHeadlineTerms.some((term) => title.includes(term));
 };
 
 const stopWords = new Set([
@@ -346,9 +410,54 @@ const normalizeUrl = (value: string) => {
   }
 };
 
+const storySignature = (title: string): StorySignature | null => {
+  const text = title.normalize("NFKC").toLowerCase();
+  const entity = [
+    { key: "codex", label: "Codex", pattern: /\bcodex\b/ },
+    { key: "claude", label: "Claude", pattern: /\bclaude\b/ },
+    {
+      key: "openai",
+      label: "OpenAI / GPT",
+      pattern: /\bopenai\b|\bchatgpt\b|\bgpt(?:-|[\s\d])/,
+    },
+    { key: "gemini", label: "Gemini", pattern: /\bgemini\b/ },
+    { key: "kimi", label: "Kimi", pattern: /\bkimi\b/ },
+  ].find((entry) => entry.pattern.test(text));
+  const event = [
+    { key: "reset" as const, pattern: /重置|\breset/ },
+    { key: "ban" as const, pattern: /封禁|被封|封号|\bban(?:ned)?\b|suspend/ },
+    {
+      key: "error" as const,
+      pattern: /报错|故障|不可用|\berror\b|\boutage\b|\bdowntime\b/,
+    },
+    {
+      key: "security" as const,
+      pattern: /攻击|漏洞|补丁|\battack\b|\bvulnerability\b|\bcve-/,
+    },
+    {
+      key: "release" as const,
+      pattern:
+        /发布|推出|上线|更新|适配|更名|\brelease\b|\blaunch\b|\bupdate\b/,
+    },
+    {
+      key: "pricing" as const,
+      pattern: /涨价|降价|套餐|补货|上新|\bpricing\b|\bprice\b/,
+    },
+  ].find((entry) => entry.pattern.test(text));
+  if (!entity || !event) return null;
+  return {
+    key: `${entity.key}:${event.key}`,
+    entity: entity.label,
+    event: event.key,
+  };
+};
+
 const sameStory = (left: RankedCandidate, right: RankedCandidate) => {
   if (normalizeUrl(left.item.url) === normalizeUrl(right.item.url)) return true;
   if (left.category !== right.category) return false;
+  const leftSignature = storySignature(left.item.title);
+  const rightSignature = storySignature(right.item.title);
+  if (leftSignature && leftSignature.key === rightSignature?.key) return true;
   return jaccard(titleTokens(left.item.title), titleTokens(right.item.title)) >= 0.66;
 };
 
@@ -463,6 +572,13 @@ const clusterToTopic = (
     representative.item.aiSummary ||
     representative.item.body ||
     representative.item.title;
+  const signature = storySignature(representative.item.title);
+  const clusteredHeadline =
+    cluster.candidates.length > 1 && signature?.event === "reset"
+      ? `${signature.entity} 使用额度重置问题出现多条社区反馈`
+      : cluster.candidates.length > 1 && signature?.event === "error"
+        ? `${signature.entity} 服务异常出现多条社区反馈`
+        : representative.item.title;
   const keywords = [
     ...representative.topics,
     ...representative.item.tags,
@@ -476,7 +592,7 @@ const clusterToTopic = (
     id: `${representative.item.id}-${rank}`,
     rank,
     category: cluster.category,
-    headline: excerpt(representative.item.title, 160),
+    headline: excerpt(clusteredHeadline, 160),
     summary: excerpt(summarySource, 260),
     whyItMatters: whyItMattersByCategory[cluster.category],
     videoAngle: videoAngleByCategory[cluster.category],
@@ -543,7 +659,7 @@ export async function generateWeeklyReport(options?: {
   await beginWeeklyReport(period.reportId, period.start, period.end);
   try {
     const items = await listContentsByPeriod(period.start, period.end);
-    const ranked = items
+    const candidates = items
       .map((item) => {
         const topics = matchedValueTopics(item);
         return {
@@ -556,28 +672,11 @@ export async function generateWeeklyReport(options?: {
       .filter(
         (candidate) =>
           candidate.item.hotScore >= MIN_VALUE_SCORE &&
-          candidate.baseScore >= 60 &&
+          candidate.baseScore >= 58 &&
+          isStrongWeeklySignal(candidate.item) &&
           (candidate.topics.length > 0 ||
             candidate.item.platform === "gitlab"),
       );
-
-    const candidates =
-      ranked.length >= 6
-        ? ranked
-        : items
-            .map((item) => ({
-              item,
-              category: classify(item),
-              baseScore: candidateScore(item, period, now),
-              topics: matchedValueTopics(item),
-            }))
-            .filter(
-              (candidate) =>
-                candidate.item.hotScore >= 42 &&
-                candidate.baseScore >= 52 &&
-                (candidate.topics.length > 0 ||
-                  candidate.item.platform === "gitlab"),
-            );
     const selected = balancedSelection(clusterCandidates(candidates));
     const topics = selected.map((cluster, index) =>
       clusterToTopic(cluster, index + 1),
