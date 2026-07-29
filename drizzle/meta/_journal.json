@@ -8,6 +8,13 @@
       "when": 1784954275995,
       "tag": "0000_fluffy_colossus",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1785303242601,
+      "tag": "0001_heavy_stature",
+      "breakpoints": true
     }
   ]
 }

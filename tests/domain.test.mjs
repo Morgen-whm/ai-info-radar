@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 async function loadWorker() {
@@ -34,6 +35,29 @@ test("health endpoint reports connector readiness without exposing secrets", asy
   assert.equal(payload.connectors.idcflare, true);
   assert.equal(payload.connectors.gitlab, true);
   assert.equal(JSON.stringify(payload).includes("TIKHUB_TOKEN"), false);
+});
+
+test("production build declares the five-minute collection schedule", async () => {
+  const config = JSON.parse(
+    await readFile(
+      new URL("../dist/server/wrangler.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  assert.deepEqual(config.triggers?.crons, ["*/5 * * * *"]);
+});
+
+test("cron endpoint fails closed when its production secret is missing", async () => {
+  const worker = await loadWorker();
+  const response = await worker.fetch(
+    new Request("http://localhost/api/internal/cron", { method: "POST" }),
+    { ...testEnv, DATA_MODE: "live" },
+    testContext,
+  );
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), {
+    error: "定时采集接口尚未配置",
+  });
 });
 
 test("feed endpoint falls back to clearly defined demo content", async () => {

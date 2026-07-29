@@ -102,6 +102,11 @@ export const collectionJobs = sqliteTable(
   ],
 );
 
+export const appMigrations = sqliteTable("app_migrations", {
+  id: text("id").primaryKey(),
+  appliedAt: text("applied_at").notNull(),
+});
+
 export const apiUsageDaily = sqliteTable(
   "api_usage_daily",
   {

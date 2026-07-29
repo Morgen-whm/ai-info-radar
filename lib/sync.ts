@@ -76,6 +76,7 @@ export async function syncAllDueSources(env: AppEnv) {
   const results: Array<{
     sourceId: string;
     ok: boolean;
+    skipped?: boolean;
     itemsAdded?: number;
     error?: string;
   }> = [];
@@ -86,6 +87,17 @@ export async function syncAllDueSources(env: AppEnv) {
       : 0;
     const due = Date.now() - last >= source.intervalMinutes * 60_000;
     if (!due) continue;
+    const needsServerTikHubToken =
+      source.platform === "x" || source.platform === "youtube";
+    if (needsServerTikHubToken && !env.TIKHUB_TOKEN) {
+      results.push({
+        sourceId: source.id,
+        ok: true,
+        skipped: true,
+        error: "未配置服务端 TikHub Token，已跳过后台采集",
+      });
+      continue;
+    }
     try {
       const result = await syncSourceById(source.id, env);
       results.push({

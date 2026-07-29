@@ -6,7 +6,13 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const env = await getAppEnv();
   const provided = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (env.CRON_SECRET && provided !== env.CRON_SECRET) {
+  if (!env.CRON_SECRET) {
+    return Response.json(
+      { error: "定时采集接口尚未配置" },
+      { status: 503 },
+    );
+  }
+  if (provided !== env.CRON_SECRET) {
     return Response.json({ error: "未授权" }, { status: 401 });
   }
   if (env.DATA_MODE !== "live") {
