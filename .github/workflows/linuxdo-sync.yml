@@ -37,7 +37,7 @@ jobs:
             feed_file="$(mktemp)"
             payload_file="$(mktemp)"
 
-            curl \
+            if ! curl \
               --silent \
               --show-error \
               --fail \
@@ -48,10 +48,23 @@ jobs:
               --max-time 45 \
               --user-agent "TrendHub RSS Collector/1.0" \
               "${feed_url}" \
-              --output "${feed_file}"
+              --output "${feed_file}"; then
+              curl \
+                --silent \
+                --show-error \
+                --fail \
+                --location \
+                --retry 3 \
+                --retry-all-errors \
+                --connect-timeout 10 \
+                --max-time 45 \
+                --user-agent "TrendHub RSS Collector/1.0" \
+                "https://r.jina.ai/${feed_url}" \
+                --output "${feed_file}"
+            fi
 
-            if ! grep -Eq "<(rss|feed)([ >])" "${feed_file}"; then
-              echo "Linux.do returned an invalid RSS document."
+            if ! grep -Eq "<(rss|feed)([ >])|https://linux\\.do/t/" "${feed_file}"; then
+              echo "Linux.do returned an invalid public feed document."
               exit 1
             fi
 

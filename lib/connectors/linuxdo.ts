@@ -155,7 +155,13 @@ export async function fetchLinuxDoSource(
     if (providedXml.length > 5_000_000) {
       throw new Error("Linux.do RSS 内容超过 5 MB 限制");
     }
-    return { items: parseRssXml(providedXml, source), billable: false };
+    if (providedXml.includes("<rss") || providedXml.includes("<feed")) {
+      return { items: parseRssXml(providedXml, source), billable: false };
+    }
+    if (providedXml.includes("https://linux.do/t/")) {
+      return { items: parseJinaFallback(providedXml, source), billable: false };
+    }
+    throw new Error("Linux.do 定时任务返回内容无效");
   }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30_000);
