@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const payload = (await request.json()) as {
     sourceId?: string;
+    feedContent?: string;
     linuxRssXml?: string;
   };
   if (!payload.sourceId) {
@@ -48,6 +49,12 @@ export async function POST(request: Request) {
         ? { ...env, TIKHUB_TOKEN: personalCredential!.apiKey }
         : env,
       {
+        feedContent:
+          (source.platform === "linuxdo" ||
+            source.platform === "idcflare") &&
+          typeof payload.feedContent === "string"
+            ? payload.feedContent
+            : undefined,
         linuxRssXml:
           source.platform === "linuxdo" &&
           typeof payload.linuxRssXml === "string"

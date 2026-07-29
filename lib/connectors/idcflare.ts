@@ -217,8 +217,30 @@ function validateTarget(target: string): URL {
 export async function fetchIdcFlareSource(
   source: Source,
   env: AppEnv,
+  providedContent?: string,
 ): Promise<ConnectorResult> {
   const target = validateTarget(source.target);
+  if (providedContent) {
+    if (providedContent.length > 5_000_000) {
+      throw new Error("IDCFlare RSS 内容超过 5 MB 限制");
+    }
+    if (
+      providedContent.includes("<rss") ||
+      providedContent.includes("<feed")
+    ) {
+      return {
+        items: parseIdcFlareRss(providedContent, source),
+        billable: false,
+      };
+    }
+    if (providedContent.includes("https://idcflare.com/t/")) {
+      return {
+        items: parseJinaFallback(providedContent, source),
+        billable: false,
+      };
+    }
+    throw new Error("IDCFlare 定时任务返回内容无效");
+  }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30_000);
   try {

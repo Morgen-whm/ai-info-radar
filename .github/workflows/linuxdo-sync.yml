@@ -1,4 +1,4 @@
-name: Linux.do scheduled collection
+name: Scheduled production collection
 
 on:
   schedule:
@@ -21,7 +21,7 @@ jobs:
       SITES_BYPASS_TOKEN: ${{ secrets.SITES_BYPASS_TOKEN }}
       CRON_SECRET: ${{ secrets.CRON_SECRET }}
     steps:
-      - name: Fetch Linux.do RSS and sync production
+      - name: Fetch protected RSS feeds and sync production
         shell: bash
         run: |
           set -euo pipefail
@@ -64,16 +64,16 @@ jobs:
                 --output "${feed_file}"
             fi
 
-            if ! grep -Eq "<(rss|feed)([ >])|https://linux\\.do/t/" "${feed_file}"; then
-              echo "Linux.do returned an invalid public feed document."
+            if ! grep -Eq "<(rss|feed)([ >])|https://(linux\\.do|idcflare\\.com)/t/" "${feed_file}"; then
+              echo "The source returned an invalid public feed document."
               exit 1
             fi
 
             jq \
               --null-input \
               --arg sourceId "${source_id}" \
-              --rawfile linuxRssXml "${feed_file}" \
-              '{sourceId: $sourceId, linuxRssXml: $linuxRssXml}' \
+              --rawfile feedContent "${feed_file}" \
+              '{sourceId: $sourceId, feedContent: $feedContent}' \
               > "${payload_file}"
 
             curl \
@@ -91,6 +91,7 @@ jobs:
 
           sync_feed "src-linuxdo-latest" "https://linux.do/latest.rss"
           sync_feed "src-linuxdo-top" "https://linux.do/top.rss?period=daily"
+          sync_feed "src-idcflare-daily-top" "https://idcflare.com/top.rss?period=daily"
 
           curl \
             --silent \

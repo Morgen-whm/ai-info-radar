@@ -8,13 +8,17 @@ import { fetchTikHubSource } from "./tikhub";
 export async function fetchSource(
   source: Source,
   env: AppEnv,
-  options: { linuxRssXml?: string } = {},
+  options: { feedContent?: string; linuxRssXml?: string } = {},
 ): Promise<ConnectorResult> {
   if (source.platform === "linuxdo") {
-    return fetchLinuxDoSource(source, env, options.linuxRssXml);
+    return fetchLinuxDoSource(
+      source,
+      env,
+      options.feedContent ?? options.linuxRssXml,
+    );
   }
   if (source.platform === "idcflare") {
-    return fetchIdcFlareSource(source, env);
+    return fetchIdcFlareSource(source, env, options.feedContent);
   }
   if (source.platform === "gitlab") {
     return fetchGitLabSource(source, env);

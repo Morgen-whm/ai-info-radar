@@ -142,8 +142,8 @@ Authorization: Bearer <CRON_SECRET>
 ## 定时任务
 
 Cloudflare Worker 部署已配置每五分钟触发一次 `scheduled` handler。由于
-Linux.do 会按云端出口网络启用访问防护，正式站点使用私有 GitHub Actions
-定时任务读取其公开 RSS，并在受限时使用只读文本回退，再通过 Sites 私有访问
+Linux.do 和 IDCFlare 会按云端出口网络启用访问防护，正式站点使用私有
+GitHub Actions 定时任务读取其公开 RSS，并在受限时使用只读文本回退，再通过 Sites 私有访问
 令牌写入同一个 D1；任务随后调用受 `CRON_SECRET` 保护的后台入口采集
 IDCFlare、GitLab 以及配置服务端 Token 后的 X / YouTube。Cloudflare
 自身的五分钟触发也保留为冗余调度。

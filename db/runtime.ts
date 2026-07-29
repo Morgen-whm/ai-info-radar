@@ -7,6 +7,7 @@ export interface AppEnv {
   RSS_PROXY_URL?: string;
   LINUXDO_PROXY_URL?: string;
   LINUXDO_SCHEDULE_MODE?: "direct" | "external";
+  IDCFLARE_SCHEDULE_MODE?: "direct" | "external";
   AI_BASE_URL?: string;
   AI_API_KEY?: string;
   AI_MODEL?: string;
@@ -30,6 +31,10 @@ export async function getAppEnv(): Promise<AppEnv> {
       LINUXDO_PROXY_URL: process.env.LINUXDO_PROXY_URL,
       LINUXDO_SCHEDULE_MODE:
         process.env.LINUXDO_SCHEDULE_MODE === "external"
+          ? "external"
+          : "direct",
+      IDCFLARE_SCHEDULE_MODE:
+        process.env.IDCFLARE_SCHEDULE_MODE === "external"
           ? "external"
           : "direct",
       AI_BASE_URL: process.env.AI_BASE_URL,

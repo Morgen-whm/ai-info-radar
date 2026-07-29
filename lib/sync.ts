@@ -15,7 +15,7 @@ import { calculateContentValueScore } from "./content-value";
 export async function syncSourceById(
   sourceId: string,
   env: AppEnv,
-  options: { linuxRssXml?: string } = {},
+  options: { feedContent?: string; linuxRssXml?: string } = {},
 ) {
   const source = await getSource(sourceId);
   if (!source) throw new Error("数据源不存在");
@@ -96,6 +96,18 @@ export async function syncAllDueSources(env: AppEnv) {
         ok: true,
         skipped: true,
         error: "Linux.do 由外部 RSS 定时任务采集",
+      });
+      continue;
+    }
+    if (
+      source.platform === "idcflare" &&
+      env.IDCFLARE_SCHEDULE_MODE === "external"
+    ) {
+      results.push({
+        sourceId: source.id,
+        ok: true,
+        skipped: true,
+        error: "IDCFlare 由外部 RSS 定时任务采集",
       });
       continue;
     }
