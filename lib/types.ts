@@ -56,8 +56,20 @@ export interface ContentItem {
   sourceTarget?: string;
 }
 
+export interface TopicSource {
+  contentId: string;
+  platform: Platform;
+  sourceName?: string;
+  title: string;
+  url: string;
+  authorName: string;
+  publishedAt: string;
+  hotScore: number;
+}
+
 export interface Topic {
   id: string;
+  kind: "signal" | "topic";
   title: string;
   summary: string;
   hotScore: number;
@@ -66,6 +78,7 @@ export interface Topic {
   itemCount: number;
   updatedAt: string;
   tags: string[];
+  sources: TopicSource[];
 }
 
 export interface CollectionJob {
@@ -114,16 +127,7 @@ export interface ConnectorResult {
 
 export type WeeklyReportStatus = "generating" | "ready" | "failed";
 
-export interface WeeklyReportSource {
-  contentId: string;
-  platform: Platform;
-  sourceName?: string;
-  title: string;
-  url: string;
-  authorName: string;
-  publishedAt: string;
-  hotScore: number;
-}
+export type WeeklyReportSource = TopicSource;
 
 export interface WeeklyReportTopic {
   id: string;

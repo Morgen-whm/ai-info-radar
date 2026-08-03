@@ -201,7 +201,14 @@ export default async function DashboardPage() {
                           />
                         ))}
                       </div>
-                      <span>{topic.itemCount} 条内容</span>
+                      <span className={`topic-kind topic-kind-${topic.kind}`}>
+                        {topic.kind === "topic" ? "热点话题" : "热点线索"}
+                      </span>
+                      <span>
+                        {topic.kind === "topic"
+                          ? `${topic.itemCount} 条内容`
+                          : "单条高价值内容"}
+                      </span>
                       <span>{formatRelativeTime(topic.updatedAt)}</span>
                     </div>
                   </div>

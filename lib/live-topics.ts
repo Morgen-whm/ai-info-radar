@@ -1,7 +1,12 @@
 import { listContentsByPeriod } from "@/db/repository";
 import { matchedValueTopics } from "@/lib/content-value";
 import { engagementTotal } from "@/lib/hot-score";
-import type { ContentItem, Platform, Topic } from "@/lib/types";
+import type {
+  ContentItem,
+  Platform,
+  Topic,
+  TopicSource,
+} from "@/lib/types";
 
 const HOUR_MS = 60 * 60 * 1_000;
 const DEFAULT_WINDOW_HOURS = 72;
@@ -205,6 +210,7 @@ const jaccard = (left: Set<string>, right: Set<string>) => {
 const normalizeUrl = (value: string) => {
   try {
     const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
     url.hash = "";
     for (const key of [...url.searchParams.keys()]) {
       if (key.startsWith("utm_") || key === "ref") {
@@ -213,12 +219,14 @@ const normalizeUrl = (value: string) => {
     }
     return url.toString();
   } catch {
-    return value;
+    return "";
   }
 };
 
 const sameStory = (left: RankedItem, right: RankedItem) => {
-  if (normalizeUrl(left.item.url) === normalizeUrl(right.item.url)) return true;
+  const leftUrl = normalizeUrl(left.item.url);
+  const rightUrl = normalizeUrl(right.item.url);
+  if (leftUrl && leftUrl === rightUrl) return true;
   const leftSignature = storySignature(left.item.title);
   const rightSignature = storySignature(right.item.title);
   if (leftSignature && leftSignature.key === rightSignature?.key) return true;
@@ -320,9 +328,14 @@ const clusterToTopic = (cluster: TopicCluster): Topic => {
     cluster.representative.item.aiSummary ||
     cluster.representative.item.body ||
     cluster.representative.item.title;
+  const distinctContentCount = new Set(
+    ordered.map(
+      (entry) => normalizeUrl(entry.item.url) || `content:${entry.item.id}`,
+    ),
+  ).size;
   const evidenceSuffix =
-    ordered.length > 1
-      ? ` 已聚合 ${ordered.length} 条内容、${platforms.length} 个平台的交叉信号。`
+    distinctContentCount > 1
+      ? ` 已聚合 ${distinctContentCount} 条内容、${platforms.length} 个平台的交叉信号。`
       : "";
   const tags = [
     ...ordered.flatMap((entry) => entry.topics),
@@ -332,19 +345,43 @@ const clusterToTopic = (cluster: TopicCluster): Topic => {
     .filter(Boolean)
     .filter((tag, index, values) => values.indexOf(tag) === index)
     .slice(0, 6);
+  const sourceUrls = new Set<string>();
+  const sources = ordered
+    .filter((entry) => {
+      const normalized = normalizeUrl(entry.item.url);
+      if (!normalized || sourceUrls.has(normalized)) return false;
+      sourceUrls.add(normalized);
+      return true;
+    })
+    .slice(0, 3)
+    .map<TopicSource>((entry) => ({
+      contentId: entry.item.id,
+      platform: entry.item.platform,
+      sourceName: entry.item.sourceName,
+      title: entry.item.title,
+      url: normalizeUrl(entry.item.url),
+      authorName: entry.item.authorName || "未知作者",
+      publishedAt: entry.item.publishedAt,
+      hotScore: entry.item.hotScore,
+    }));
+  const corroborated =
+    distinctContentCount >= 2 ||
+    new Set(ordered.map((entry) => entry.item.sourceId)).size >= 2;
   return {
     id: `topic-${hashId(
       storySignature(cluster.representative.item.title)?.key ||
         cluster.representative.item.id,
     )}`,
+    kind: corroborated ? "topic" : "signal",
     title: excerpt(clusterTitle(cluster), 120),
     summary: excerpt(`${summarySource}${evidenceSuffix}`, 260),
     hotScore: cluster.score,
     momentum: cluster.momentum,
     platforms,
-    itemCount: ordered.length,
+    itemCount: distinctContentCount,
     updatedAt: latest.item.publishedAt,
     tags,
+    sources,
   };
 };
 

@@ -109,6 +109,39 @@ test("homepage, topics page and dashboard API no longer import demoTopics", asyn
   assert.ok(files.every((source) => !source.includes("demoTopics")));
 });
 
+test("live topics preserve source links and distinguish signals from corroborated topics", async () => {
+  const [types, clustering, page, homepage] = await Promise.all(
+    [
+      "../lib/types.ts",
+      "../lib/live-topics.ts",
+      "../app/topics/page.tsx",
+      "../app/page.tsx",
+    ].map((path) => readFile(new URL(path, import.meta.url), "utf8")),
+  );
+
+  assert.match(types, /kind: "signal" \| "topic"/);
+  assert.match(types, /sources: TopicSource\[\]/);
+  assert.match(clustering, /sourceUrls\.has\(normalized\)/);
+  assert.match(clustering, /distinctContentCount >= 2/);
+  assert.match(
+    clustering,
+    /new Set\(ordered\.map\(\(entry\) => entry\.item\.sourceId\)\)\.size >= 2/,
+  );
+  assert.match(clustering, /\.slice\(0, 3\)\s*\.map<TopicSource>/);
+  assert.match(clustering, /kind: corroborated \? "topic" : "signal"/);
+  assert.match(page, /className="topic-title-link"/);
+  assert.match(page, /href=\{topic\.sources\[0\]\.url\}/);
+  assert.match(page, /topic\.sources\.map\(\(source\)/);
+  assert.match(page, /热点线索/);
+  assert.match(page, /热点话题/);
+  assert.match(page, /X 原帖/);
+  assert.match(page, /YouTube 视频/);
+  assert.match(page, /Linux\.do 话题/);
+  assert.match(page, /target="_blank"/);
+  assert.match(homepage, /热点线索/);
+  assert.match(homepage, /热点话题/);
+});
+
 test("weekly UI refresh rejects cross-site requests before database access", async () => {
   const worker = await loadWorker();
   const response = await worker.fetch(

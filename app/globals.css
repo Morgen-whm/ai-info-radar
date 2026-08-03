@@ -1271,9 +1271,41 @@ button {
   font-size: 10px;
 }
 
+.topic-kind {
+  padding: 4px 7px;
+  border: 1px solid rgba(132, 213, 255, 0.2);
+  border-radius: 999px;
+  color: var(--cyan);
+  background: rgba(132, 213, 255, 0.06);
+  letter-spacing: 0.04em;
+}
+
+.topic-kind-topic {
+  border-color: rgba(166, 243, 95, 0.22);
+  color: var(--lime);
+  background: rgba(166, 243, 95, 0.07);
+}
+
 .topic-card-main h2 {
   margin: 10px 0 7px;
   font-size: 19px;
+}
+
+.topic-title-link {
+  color: inherit;
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+
+.topic-title-link:hover {
+  color: var(--lime);
+}
+
+.topic-title-link:focus-visible,
+.topic-source-link:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+  border-radius: 5px;
 }
 
 .topic-card-main > p {
@@ -1287,6 +1319,55 @@ button {
   display: grid;
   gap: 8px;
   color: var(--muted);
+  font-size: 10px;
+}
+
+.topic-card-sources {
+  grid-column: 1 / -1;
+  padding-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.topic-card-sources-label {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.topic-source-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.topic-source-link {
+  min-height: 34px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 11px;
+  text-decoration: none;
+  transition: 160ms ease;
+}
+
+.topic-source-link:hover {
+  border-color: rgba(166, 243, 95, 0.24);
+  color: var(--lime);
+  background: rgba(166, 243, 95, 0.06);
+  transform: translateY(-1px);
+}
+
+.topic-source-link b {
   font-size: 10px;
 }
 
@@ -2562,6 +2643,12 @@ code {
   .topic-card-meta {
     grid-column: auto;
     grid-template-columns: 1fr 1fr;
+  }
+
+  .topic-card-sources {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 9px;
   }
 
   .sparkline {

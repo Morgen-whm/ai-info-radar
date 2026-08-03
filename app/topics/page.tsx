@@ -18,6 +18,21 @@ const sparkHeights = (topic: Topic) => {
   );
 };
 
+const sourceLabel = (platform: Topic["platforms"][number]) => {
+  switch (platform) {
+    case "x":
+      return "X 原帖";
+    case "youtube":
+      return "YouTube 视频";
+    case "linuxdo":
+      return "Linux.do 话题";
+    case "idcflare":
+      return "IDCFlare 原文";
+    case "gitlab":
+      return "GitLab 官方内容";
+  }
+};
+
 export default async function TopicsPage() {
   let topics: Topic[] = [];
   try {
@@ -51,13 +66,30 @@ export default async function TopicsPage() {
             <div className="topic-card-main">
               <div className="topic-card-kicker">
                 <span>#{String(index + 1).padStart(2, "0")}</span>
+                <span className={`topic-kind topic-kind-${topic.kind}`}>
+                  {topic.kind === "topic" ? "热点话题" : "热点线索"}
+                </span>
                 <div className="platform-stack">
                   {topic.platforms.map((platform) => (
                     <PlatformBadge platform={platform} compact key={platform} />
                   ))}
                 </div>
               </div>
-              <h2>{topic.title}</h2>
+              <h2>
+                {topic.sources[0] ? (
+                  <a
+                    className="topic-title-link"
+                    href={topic.sources[0].url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {topic.title}
+                    <span aria-hidden="true"> ↗</span>
+                  </a>
+                ) : (
+                  topic.title
+                )}
+              </h2>
               <p>{topic.summary}</p>
               <div className="tag-list">
                 {topic.tags.map((tag) => (
@@ -66,7 +98,11 @@ export default async function TopicsPage() {
               </div>
             </div>
             <div className="topic-card-meta">
-              <span>{topic.itemCount} 条关联内容</span>
+              <span>
+                {topic.kind === "topic"
+                  ? `${topic.itemCount} 条关联内容`
+                  : "单条高价值线索"}
+              </span>
               <span>更新于 {formatRelativeTime(topic.updatedAt)}</span>
               <div className="sparkline" aria-label="热度正在上升">
                 {sparkHeights(topic).map((height, sparkIndex) => (
@@ -74,6 +110,27 @@ export default async function TopicsPage() {
                 ))}
               </div>
             </div>
+            {topic.sources.length ? (
+              <div className="topic-card-sources">
+                <span className="topic-card-sources-label">关联原文</span>
+                <div className="topic-source-links">
+                  {topic.sources.map((source) => (
+                    <a
+                      className="topic-source-link"
+                      href={source.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={source.title}
+                      key={`${topic.id}-${source.contentId}`}
+                    >
+                      <PlatformBadge platform={source.platform} compact />
+                      <span>{sourceLabel(source.platform)}</span>
+                      <b aria-hidden="true">↗</b>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </article>
           ))}
         </section>
