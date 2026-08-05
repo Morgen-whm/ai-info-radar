@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const navItems = [
   { href: "/", label: "实时总览", mark: "⌁" },
@@ -92,6 +93,7 @@ export function AppShell({
             ))}
           </nav>
           <div className="topbar-right">
+            <ThemeToggle />
             <span className="timezone">America/Los_Angeles</span>
             <span className="demo-pill">
               {mode === "live" ? "LIVE" : "LOCAL"}

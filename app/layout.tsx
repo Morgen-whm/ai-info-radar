@@ -4,6 +4,23 @@ import { AppShell } from "@/components/AppShell";
 import { getAppEnv } from "@/db/runtime";
 import "./globals.css";
 
+const themeInitializer = `
+  (() => {
+    try {
+      const stored = window.localStorage.getItem("trendhub-theme");
+      const theme = stored === "light" || stored === "dark"
+        ? stored
+        : window.matchMedia("(prefers-color-scheme: light)").matches
+          ? "light"
+          : "dark";
+      document.documentElement.dataset.theme = theme;
+      document.documentElement.style.colorScheme = theme;
+    } catch {
+      document.documentElement.dataset.theme = "dark";
+    }
+  })();
+`;
+
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
   const host = requestHeaders.get("host") || "localhost:3000";
@@ -43,7 +60,10 @@ export default async function RootLayout({
 }>) {
   const env = await getAppEnv();
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" data-theme="dark" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitializer }} />
+      </head>
       <body>
         <AppShell mode={env.DATA_MODE === "live" ? "live" : "demo"}>
           {children}

@@ -109,6 +109,26 @@ test("homepage, topics page and dashboard API no longer import demoTopics", asyn
   assert.ok(files.every((source) => !source.includes("demoTopics")));
 });
 
+test("light and dark themes are selectable, persistent and initialized before paint", async () => {
+  const [layout, toggle, styles] = await Promise.all(
+    [
+      "../app/layout.tsx",
+      "../components/ThemeToggle.tsx",
+      "../app/globals.css",
+    ].map((path) => readFile(new URL(path, import.meta.url), "utf8")),
+  );
+
+  assert.match(layout, /localStorage\.getItem\("trendhub-theme"\)/);
+  assert.match(layout, /prefers-color-scheme: light/);
+  assert.match(layout, /suppressHydrationWarning/);
+  assert.match(layout, /dangerouslySetInnerHTML/);
+  assert.match(toggle, /localStorage\.setItem\(STORAGE_KEY, theme\)/);
+  assert.match(toggle, /aria-pressed=\{theme === "light"\}/);
+  assert.match(toggle, /aria-pressed=\{theme === "dark"\}/);
+  assert.match(styles, /html\[data-theme="light"\]/);
+  assert.match(styles, /\.theme-toggle/);
+});
+
 test("live topics preserve source links and distinguish signals from corroborated topics", async () => {
   const [types, clustering, page, homepage] = await Promise.all(
     [

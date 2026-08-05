@@ -38,6 +38,8 @@ test("server-renders the TrendHub dashboard", async () => {
   assert.match(html, /Codex/);
   assert.match(html, /AI 摘要/);
   assert.match(html, /一键采集全部/);
+  assert.match(html, /切换到日间浅色主题/);
+  assert.match(html, /切换到夜间深色主题/);
   assert.match(html, /LOCAL/);
   assert.match(html, /og\.png/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
