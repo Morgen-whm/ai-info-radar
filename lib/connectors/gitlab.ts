@@ -2,7 +2,7 @@ import { XMLParser } from "fast-xml-parser";
 import type { AppEnv } from "@/db/runtime";
 import type { ConnectorResult, NormalizedContentInput, Source } from "../types";
 import { getSourceCollectionConfig } from "../source-config";
-import { normalizeDate, stripHtml } from "./helpers";
+import { avatarFrom, normalizeDate, stripHtml } from "./helpers";
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -163,6 +163,7 @@ export function parseGitLabFeed(
         body,
         url: link,
         authorName: author || "GitLab 官方",
+        authorAvatarUrl: avatarFrom(entry, "gitlab"),
         publishedAt: normalizeDate(
           textValue(entry.published ?? entry.pubDate ?? entry.updated),
         ),

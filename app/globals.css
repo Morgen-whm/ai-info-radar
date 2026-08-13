@@ -1044,6 +1044,52 @@ button {
 
 .source-identity {
   justify-content: flex-start;
+  gap: 9px;
+}
+
+.author-avatar {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: var(--panel-hover);
+  color: var(--muted-strong);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.author-avatar > img {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  background: var(--panel-hover);
+}
+
+.author-avatar-x {
+  box-shadow: inset 0 0 0 2px rgba(234, 242, 238, 0.06);
+}
+
+.author-avatar-youtube {
+  border-color: rgba(255, 99, 99, 0.3);
+}
+
+.author-avatar-linuxdo {
+  border-color: rgba(184, 166, 255, 0.3);
+}
+
+.author-avatar-idcflare,
+.author-avatar-gitlab {
+  border-color: rgba(255, 180, 84, 0.3);
 }
 
 .source-identity strong {

@@ -1,6 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
 import type { ConnectorResult, NormalizedContentInput, Source } from "../types";
-import { normalizeDate, stripHtml } from "./helpers";
+import { avatarFrom, normalizeDate, stripHtml } from "./helpers";
 import { getSourceCollectionConfig } from "../source-config";
 import type { AppEnv } from "@/db/runtime";
 
@@ -124,6 +124,7 @@ function parseRssXml(
         body,
         url: link,
         authorName: author || "Linux.do 社区",
+        authorAvatarUrl: avatarFrom(entry, "linuxdo"),
         publishedAt: normalizeDate(
           textValue(entry.pubDate ?? entry.published ?? entry.updated),
         ),

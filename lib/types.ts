@@ -44,6 +44,7 @@ export interface ContentItem {
   url: string;
   authorName: string;
   authorHandle?: string;
+  authorAvatarUrl?: string;
   publishedAt: string;
   fetchedAt: string;
   metrics: ContentMetrics;

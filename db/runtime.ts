@@ -76,6 +76,7 @@ const schemaStatements = [
     url TEXT NOT NULL,
     author_name TEXT NOT NULL DEFAULT '',
     author_handle TEXT,
+    author_avatar_url TEXT,
     published_at TEXT NOT NULL,
     fetched_at TEXT NOT NULL,
     metrics_json TEXT NOT NULL DEFAULT '{}',
@@ -167,5 +168,17 @@ export async function ensureDatabase(db: D1Database): Promise<void> {
   if (schemaReady) return;
   const statements = schemaStatements.map((sql) => db.prepare(sql));
   await db.batch(statements);
+  const contentColumns = await db
+    .prepare("PRAGMA table_info(contents)")
+    .all<{ name: string }>();
+  if (
+    !contentColumns.results.some(
+      (column) => column.name === "author_avatar_url",
+    )
+  ) {
+    await db
+      .prepare("ALTER TABLE contents ADD COLUMN author_avatar_url TEXT")
+      .run();
+  }
   schemaReady = true;
 }

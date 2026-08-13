@@ -43,6 +43,7 @@ export const contents = sqliteTable(
     url: text("url").notNull(),
     authorName: text("author_name").notNull().default(""),
     authorHandle: text("author_handle"),
+    authorAvatarUrl: text("author_avatar_url"),
     publishedAt: text("published_at").notNull(),
     fetchedAt: text("fetched_at").notNull(),
     metricsJson: text("metrics_json").notNull().default("{}"),

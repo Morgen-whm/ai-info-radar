@@ -18,6 +18,7 @@ import {
 } from "@/lib/content-value";
 import {
   authorFrom,
+  avatarFrom,
   firstString,
   metricsFrom,
   normalizeDate,
@@ -67,6 +68,9 @@ const contentFromRow = (row: Row): ContentItem => {
     : recoveredAuthor.handle
       ? `@${recoveredAuthor.handle.replace(/^@/, "")}`
       : undefined;
+  const authorAvatarUrl = row.author_avatar_url
+    ? String(row.author_avatar_url)
+    : avatarFrom(raw, platform);
   const storedMetrics = parseJson(row.metrics_json, {});
   const metrics = { ...metricsFrom(raw), ...storedMetrics };
   const fetchedAt = String(row.fetched_at);
@@ -99,6 +103,7 @@ const contentFromRow = (row: Row): ContentItem => {
     url: String(row.url),
     authorName,
     authorHandle,
+    authorAvatarUrl,
     publishedAt,
     fetchedAt,
     metrics,
@@ -424,9 +429,9 @@ export async function upsertContent(
     .prepare(
       `INSERT INTO contents (
         id, platform, external_id, source_id, content_type, title, body, url,
-        author_name, author_handle, published_at, fetched_at, metrics_json,
+        author_name, author_handle, author_avatar_url, published_at, fetched_at, metrics_json,
         hot_score, tags_json, ai_summary, summary_status, raw_json, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(platform, external_id) DO UPDATE SET
         source_id = excluded.source_id,
         title = excluded.title,
@@ -434,6 +439,7 @@ export async function upsertContent(
         url = excluded.url,
         author_name = excluded.author_name,
         author_handle = excluded.author_handle,
+        author_avatar_url = COALESCE(excluded.author_avatar_url, contents.author_avatar_url),
         fetched_at = excluded.fetched_at,
         metrics_json = excluded.metrics_json,
         hot_score = excluded.hot_score,
@@ -454,6 +460,7 @@ export async function upsertContent(
       item.url,
       item.authorName,
       item.authorHandle ?? null,
+      item.authorAvatarUrl ?? null,
       item.publishedAt,
       item.fetchedAt,
       JSON.stringify(item.metrics),

@@ -5,6 +5,7 @@ import type {
 } from "../types";
 import {
   authorFrom,
+  avatarFrom,
   collectCandidateObjects,
   firstNumber,
   firstString,
@@ -92,6 +93,7 @@ function normalizeXItems(
         `https://x.com/${handle || "i"}/status/${id}`,
       authorName: author.name,
       authorHandle: author.handle ? `@${handle}` : undefined,
+      authorAvatarUrl: avatarFrom(item, "x"),
       publishedAt: normalizeDate(
         legacy.created_at ?? item.created_at ?? item.timestamp,
       ),
@@ -162,6 +164,7 @@ function normalizeYouTubeItems(
         `https://www.youtube.com/watch?v=${id}`,
       authorName: author.name,
       authorHandle: author.handle || undefined,
+      authorAvatarUrl: avatarFrom(item, "youtube"),
       publishedAt: normalizeDate(
         item.published_at ??
           item.publish_date ??

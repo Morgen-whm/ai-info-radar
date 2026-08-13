@@ -1,6 +1,7 @@
 import { formatCompactNumber, formatRelativeTime } from "@/lib/format";
 import type { ContentItem } from "@/lib/types";
 import { PlatformBadge } from "./PlatformBadge";
+import { AuthorAvatar } from "./AuthorAvatar";
 import { getValueReasons } from "@/lib/content-value";
 
 export function ContentCard({ item }: { item: ContentItem }) {
@@ -10,6 +11,11 @@ export function ContentCard({ item }: { item: ContentItem }) {
       <div className="content-card-top">
         <div className="source-identity">
           <PlatformBadge platform={item.platform} />
+          <AuthorAvatar
+            name={item.authorName}
+            platform={item.platform}
+            src={item.authorAvatarUrl}
+          />
           <div>
             <strong>{item.authorName}</strong>
             <span>

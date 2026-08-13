@@ -2,7 +2,7 @@ import { XMLParser } from "fast-xml-parser";
 import type { AppEnv } from "@/db/runtime";
 import type { ConnectorResult, NormalizedContentInput, Source } from "../types";
 import { getSourceCollectionConfig } from "../source-config";
-import { normalizeDate, stripHtml } from "./helpers";
+import { avatarFrom, normalizeDate, stripHtml } from "./helpers";
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -152,6 +152,7 @@ export function parseIdcFlareRss(
         body,
         url: link,
         authorName: author || "IDCFlare 社区",
+        authorAvatarUrl: avatarFrom(entry, "idcflare"),
         publishedAt: normalizeDate(
           textValue(entry.pubDate ?? entry.published ?? entry.updated),
         ),

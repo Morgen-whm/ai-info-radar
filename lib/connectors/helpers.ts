@@ -134,6 +134,139 @@ export function authorFrom(
   };
 }
 
+const avatarBaseUrl = (platform?: Platform) =>
+  platform === "linuxdo"
+    ? "https://linux.do"
+    : platform === "idcflare"
+      ? "https://idcflare.com"
+      : platform === "gitlab"
+        ? "https://about.gitlab.com"
+        : undefined;
+
+const normalizeAvatarUrl = (
+  value: string,
+  platform?: Platform,
+): string | undefined => {
+  const trimmed = value.trim().replace(/&amp;/g, "&");
+  if (!trimmed || trimmed.startsWith("data:")) return undefined;
+  const expanded = trimmed.replace(/\{size\}/g, "96");
+  try {
+    const url = expanded.startsWith("//")
+      ? new URL(`https:${expanded}`)
+      : new URL(expanded, avatarBaseUrl(platform));
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      return undefined;
+    }
+    return url.hostname === "pbs.twimg.com"
+      ? url.href.replace(/_normal(?=\.[a-z0-9]+(?:\?|$))/i, "_200x200")
+      : url.href;
+  } catch {
+    return undefined;
+  }
+};
+
+const avatarUrlFromValue = (
+  value: unknown,
+  platform?: Platform,
+  depth = 0,
+): string | undefined => {
+  if (depth > 3 || value === null || value === undefined) return undefined;
+  if (typeof value === "string") return normalizeAvatarUrl(value, platform);
+  if (Array.isArray(value)) {
+    for (const candidate of value) {
+      const url = avatarUrlFromValue(candidate, platform, depth + 1);
+      if (url) return url;
+    }
+    return undefined;
+  }
+  const item = record(value);
+  for (const key of [
+    "url",
+    "src",
+    "uri",
+    "href",
+    "profile_image_url_https",
+    "profile_image_url",
+    "avatar_url",
+    "avatarUrl",
+    "avatar_template",
+    "discourse:avatar",
+  ]) {
+    const candidate = item[key];
+    if (typeof candidate !== "string") continue;
+    const url = normalizeAvatarUrl(candidate, platform);
+    if (url) return url;
+  }
+  for (const key of ["thumbnails", "thumbnail", "images", "image"]) {
+    const url = avatarUrlFromValue(item[key], platform, depth + 1);
+    if (url) return url;
+  }
+  return undefined;
+};
+
+export function avatarFrom(
+  item: Record<string, unknown>,
+  platform?: Platform,
+): string | undefined {
+  const coreUser = record(record(record(item.core).user_results).result);
+  const author = record(item.author);
+  const channel = record(item.channel);
+  const containers = [
+    record(item.user_info),
+    record(item.userInfo),
+    record(item.user),
+    record(item.author_info),
+    record(item.authorInfo),
+    author,
+    channel,
+    record(item.owner),
+    coreUser,
+    record(coreUser.legacy),
+  ];
+
+  for (const key of [
+    "author_avatar_url",
+    "authorAvatarUrl",
+    "author_avatar",
+    "authorThumbnail",
+    "author_thumbnail",
+    "channel_avatar_url",
+    "channelAvatarUrl",
+    "channel_thumbnail",
+    "channelThumbnail",
+    "profile_image_url_https",
+    "profile_image_url",
+    "avatar_url",
+    "avatarUrl",
+    "avatar_template",
+    "discourse:avatar",
+  ]) {
+    const url = avatarUrlFromValue(item[key], platform);
+    if (url) return url;
+  }
+
+  for (const container of containers) {
+    for (const key of [
+      "profile_image_url_https",
+      "profile_image_url",
+      "avatar_url",
+      "avatarUrl",
+      "avatar",
+      "avatar_template",
+      "profile_picture",
+      "profilePicture",
+      "thumbnail",
+      "thumbnails",
+      "image",
+      "images",
+    ]) {
+      const url = avatarUrlFromValue(container[key], platform);
+      if (url) return url;
+    }
+  }
+  return undefined;
+}
+
 export function collectCandidateObjects(
   root: unknown,
   predicate: (value: Record<string, unknown>) => boolean,

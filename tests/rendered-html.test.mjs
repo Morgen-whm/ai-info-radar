@@ -37,6 +37,7 @@ test("server-renders the TrendHub dashboard", async () => {
   assert.match(html, /X、YouTube、Linux\.do、IDCFlare 与 GitLab/);
   assert.match(html, /Codex/);
   assert.match(html, /AI 摘要/);
+  assert.match(html, /AI Builder Watch 的头像/);
   assert.match(html, /一键采集全部/);
   assert.match(html, /切换到日间浅色主题/);
   assert.match(html, /切换到夜间深色主题/);

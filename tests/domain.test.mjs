@@ -85,6 +85,33 @@ test("production package contains both weekly report D1 tables", async () => {
   assert.match(sql, /CREATE TABLE `weekly_report_items`/);
 });
 
+test("author avatars are collected, persisted and rendered with a fallback", async () => {
+  const [types, helpers, tikhub, repository, card, avatar, migration] =
+    await Promise.all(
+      [
+        "../lib/types.ts",
+        "../lib/connectors/helpers.ts",
+        "../lib/connectors/tikhub.ts",
+        "../db/repository.ts",
+        "../components/ContentCard.tsx",
+        "../components/AuthorAvatar.tsx",
+        "../drizzle/0003_tired_devos.sql",
+      ].map((path) => readFile(new URL(path, import.meta.url), "utf8")),
+    );
+
+  assert.match(types, /authorAvatarUrl\?: string/);
+  assert.match(helpers, /export function avatarFrom/);
+  assert.match(helpers, /profile_image_url_https/);
+  assert.match(helpers, /channel_thumbnail/);
+  assert.match(tikhub, /authorAvatarUrl: avatarFrom\(item, "x"\)/);
+  assert.match(tikhub, /authorAvatarUrl: avatarFrom\(item, "youtube"\)/);
+  assert.match(repository, /author_avatar_url/);
+  assert.match(repository, /avatarFrom\(raw, platform\)/);
+  assert.match(card, /src=\{item\.authorAvatarUrl\}/);
+  assert.match(avatar, /onError=\{\(\) => setFailed\(true\)\}/);
+  assert.match(migration, /ADD `author_avatar_url` text/);
+});
+
 test("dashboard never substitutes fixed demo topics", async () => {
   const worker = await loadWorker();
   const response = await worker.fetch(
