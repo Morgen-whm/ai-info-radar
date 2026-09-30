@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { PlatformBadge } from "@/components/PlatformBadge";
 import { formatRelativeTime } from "@/lib/format";
 import { getSourceCollectionConfig } from "@/lib/source-config";
-import { loadLinuxFeeds, loadLinuxRss } from "@/lib/client-sync";
+import { collectAllSources, loadLinuxFeeds, loadLinuxRss } from "@/lib/client-sync";
+import { formatCollectionProgress } from "@/lib/collection-progress";
 import type { Platform, Source, SourceKind } from "@/lib/types";
 
 const kindLabels: Record<SourceKind, string> = {
-  trending: "地区趋势",
+  trending: "趋势榜单",
   keyword: "关键词",
   account: "账号",
   channel: "频道",
@@ -44,7 +46,8 @@ function SourceConfigFields({
   const isPublicFeed =
     platform === "linuxdo" ||
     platform === "idcflare" ||
-    platform === "gitlab";
+    platform === "gitlab" ||
+    platform === "github";
   const supportsPages =
     !isPublicFeed && kind !== "trending" && kind !== "feed";
 
@@ -141,6 +144,8 @@ function SourceConfigFields({
 }
 
 export function SourceManager({ initialSources }: { initialSources: Source[] }) {
+  const router = useRouter();
+  const collectionInFlight = useRef(false);
   const [sources, setSources] = useState(initialSources);
   const [showForm, setShowForm] = useState(false);
   const [notice, setNotice] = useState("");
@@ -150,7 +155,10 @@ export function SourceManager({ initialSources }: { initialSources: Source[] }) 
   const [newKind, setNewKind] = useState<SourceKind>("keyword");
 
   async function reloadSources() {
-    const response = await fetch("/api/sources");
+    const response = await fetch("/api/sources", {
+      cache: "no-store",
+      signal: AbortSignal.timeout(15_000),
+    });
     if (!response.ok) throw new Error("数据源接口暂不可用");
     const payload = (await response.json()) as { sources: Source[] };
     setSources(payload.sources);
@@ -175,6 +183,8 @@ export function SourceManager({ initialSources }: { initialSources: Source[] }) 
   }
 
   async function syncSource(source: Source) {
+    if (collectionInFlight.current) return;
+    collectionInFlight.current = true;
     setSyncing(source.id);
     setNotice("");
     try {
@@ -197,43 +207,49 @@ export function SourceManager({ initialSources }: { initialSources: Source[] }) 
           ? "个人 API Key"
           : payload.credentialMode === "server"
             ? "服务端 Token"
-            : "公开 RSS";
+            : source.platform === "github"
+              ? "GitHub 公开 API"
+              : "公开 RSS";
       setNotice(
-        `${source.name} 使用${modeLabel}同步完成，发现 ${payload.itemsFound ?? 0} 条，价值达标 ${payload.itemsAccepted ?? 0} 条，新增 ${payload.itemsAdded ?? 0} 条`,
+        `${source.name} 使用${modeLabel}同步完成，发现 ${payload.itemsFound ?? 0} 条，价值达标 ${payload.itemsAccepted ?? 0} 条，新增 ${payload.itemsAdded ?? 0} 条${source.platform === "github" ? "。Star 快照已保存；首日建立基线，次日开始形成完整日榜" : ""}`,
       );
       await reloadSources();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "同步失败");
     } finally {
+      collectionInFlight.current = false;
       setSyncing(null);
+      router.refresh();
     }
   }
 
   async function syncAll() {
+    if (collectionInFlight.current) return;
+    collectionInFlight.current = true;
     setSyncing("all");
-    setNotice("正在依次采集全部启用的监测源，请勿关闭页面…");
+    setNotice("正在准备监测源，采集进度将自动更新，请勿关闭页面…");
     try {
       const linuxFeeds = await loadLinuxFeeds(sources);
-      const response = await fetch("/api/sync/all", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ linuxFeeds }),
+      let completed = 0;
+      const payload = await collectAllSources(linuxFeeds, (progress) => {
+        setNotice(formatCollectionProgress(progress));
+        if (progress.completed > completed) {
+          completed = progress.completed;
+          void reloadSources().catch(() => undefined);
+          router.refresh();
+        }
       });
-      const payload = (await response.json()) as {
-        succeeded?: number;
-        failed?: number;
-        itemsAdded?: number;
-        error?: string;
-      };
-      if (!response.ok) throw new Error(payload.error || "批量同步失败");
       setNotice(
-        `全部采集完成：成功 ${payload.succeeded ?? 0} 个，失败 ${payload.failed ?? 0} 个，新增 ${payload.itemsAdded ?? 0} 条`,
+        `全部采集完成：成功 ${payload.succeeded} 个，失败 ${payload.failed} 个，新增 ${payload.itemsAdded} 条`,
       );
-      await reloadSources();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "批量同步失败");
     } finally {
+      collectionInFlight.current = false;
       setSyncing(null);
+      // A slow refresh must not keep the collection button disabled.
+      void reloadSources().catch(() => undefined);
+      router.refresh();
     }
   }
 
@@ -328,7 +344,7 @@ export function SourceManager({ initialSources }: { initialSources: Source[] }) 
             </div>
             <p>
               TikHub 最多连续采集 3 页；Linux.do、IDCFlare 与 GitLab
-              使用公开 RSS。
+              使用公开 RSS；GitHub 每日保存 Star 快照并计算增长榜。
             </p>
           </div>
           <label>
@@ -345,6 +361,8 @@ export function SourceManager({ initialSources }: { initialSources: Source[] }) 
                   platform === "gitlab"
                 ) {
                   setNewKind("feed");
+                } else if (platform === "github") {
+                  setNewKind("trending");
                 }
               }}
             >
@@ -353,6 +371,7 @@ export function SourceManager({ initialSources }: { initialSources: Source[] }) 
               <option value="linuxdo">Linux.do</option>
               <option value="idcflare">IDCFlare</option>
               <option value="gitlab">GitLab</option>
+              <option value="github">GitHub</option>
             </select>
           </label>
           <label>
@@ -378,7 +397,7 @@ export function SourceManager({ initialSources }: { initialSources: Source[] }) 
             <input
               name="target"
               required
-              placeholder="关键词、账号、频道 ID、地区或社区 RSS 地址"
+              placeholder={newPlatform === "github" ? "github://ai-star-growth" : "关键词、账号、频道 ID、地区或社区 RSS 地址"}
             />
           </label>
           <label>
@@ -398,7 +417,7 @@ export function SourceManager({ initialSources }: { initialSources: Source[] }) 
         </form>
       ) : null}
 
-      {notice ? <div className="notice">{notice}</div> : null}
+      {notice ? <div className="notice" role="status" aria-live="polite">{notice}</div> : null}
 
       <section className="source-list">
         {sources.map((source) => {
@@ -422,7 +441,8 @@ export function SourceManager({ initialSources }: { initialSources: Source[] }) 
                     <p>{source.target}</p>
                     <div className="source-tags">
                       <span>{kindLabels[source.kind]}</span>
-                      <span>每 {source.intervalMinutes} 分钟</span>
+                      <span>{source.platform === "github" ? "每日快照 · 周一周榜" : `每 ${source.intervalMinutes} 分钟`}</span>
+                      {source.platform === "github" ? <span>爆发项目优先</span> : null}
                       {config.maxPages > 1 ? (
                         <span>{config.maxPages} 页</span>
                       ) : null}

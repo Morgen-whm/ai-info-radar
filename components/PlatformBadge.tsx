@@ -6,6 +6,7 @@ const labels: Record<Platform, string> = {
   linuxdo: "L",
   idcflare: "IF",
   gitlab: "GL",
+  github: "GH",
 };
 
 const accessibleLabels: Record<Platform, string> = {
@@ -14,6 +15,7 @@ const accessibleLabels: Record<Platform, string> = {
   linuxdo: "Linux.do",
   idcflare: "IDCFlare",
   gitlab: "GitLab",
+  github: "GitHub",
 };
 
 export function PlatformBadge({

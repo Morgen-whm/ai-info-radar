@@ -8,8 +8,11 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 const navItems = [
   { href: "/", label: "实时总览", mark: "⌁" },
   { href: "/feed", label: "信息流", mark: "≋" },
+  { href: "/search", label: "话题搜索", mark: "⌕" },
   { href: "/topics", label: "热点话题", mark: "↗" },
   { href: "/weekly", label: "AI 周报", mark: "▦" },
+  { href: "/review", label: "审核中心", mark: "✓" },
+  { href: "/knowledge", label: "知识库网站", mark: "◇" },
   { href: "/sources", label: "监测源", mark: "◎" },
   { href: "/jobs", label: "采集任务", mark: "◫" },
   { href: "/settings", label: "系统设置", mark: "⚙" },
@@ -23,6 +26,34 @@ export function AppShell({
   mode: "demo" | "live";
 }) {
   const pathname = usePathname();
+  if (pathname.startsWith("/knowledge")) {
+    return (
+      <div className="knowledge-site-shell">
+        <header className="knowledge-site-header">
+          <Link href="/knowledge" className="knowledge-brand">
+            <span className="brand-mark">T</span>
+            <div>
+              <strong>TrendHub Knowledge</strong>
+              <small>经过核对的 AI 实践知识</small>
+            </div>
+          </Link>
+          <nav aria-label="知识库导航">
+            <Link href="/knowledge">全部内容</Link>
+            <Link href="/knowledge?category=codex_skills">Codex</Link>
+            <Link href="/knowledge?category=open_source">开源项目</Link>
+            <Link href="/knowledge?category=tested_tutorial">实测教程</Link>
+          </nav>
+          <div className="knowledge-header-actions">
+            <ThemeToggle />
+            <Link href="/review" className="knowledge-admin-link">
+              编辑后台
+            </Link>
+          </div>
+        </header>
+        <div className="knowledge-site-main">{children}</div>
+      </div>
+    );
+  }
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -73,25 +104,6 @@ export function AppShell({
             <span className="brand-mark">T</span>
             <strong>TrendHub</strong>
           </div>
-          <nav className="mobile-nav" aria-label="移动端导航">
-            {navItems.slice(0, 5).map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={
-                  item.href === "/"
-                    ? pathname === "/"
-                      ? "active"
-                      : ""
-                    : pathname.startsWith(item.href)
-                      ? "active"
-                      : ""
-                }
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
           <div className="topbar-right">
             <ThemeToggle />
             <span className="timezone">America/Los_Angeles</span>
@@ -101,6 +113,25 @@ export function AppShell({
             <span className="team-avatar">AI</span>
           </div>
         </header>
+        <nav className="mobile-nav" aria-label="移动端导航">
+          {navItems.slice(0, 7).map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={
+                item.href === "/"
+                  ? pathname === "/"
+                    ? "active"
+                    : ""
+                  : pathname.startsWith(item.href)
+                    ? "active"
+                    : ""
+              }
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
         <div className="page-wrap">{children}</div>
       </div>
     </div>

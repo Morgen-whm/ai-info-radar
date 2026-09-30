@@ -1,7 +1,13 @@
 import { listSources } from "@/db/repository";
 import { getAppEnv } from "@/db/runtime";
-import { syncSourceById } from "@/lib/sync";
+import { isGitHubDailyDue, syncSourceById } from "@/lib/sync";
 import { readTikHubCredential } from "@/lib/tikhub-credentials";
+import {
+  collectionProgressResponse,
+  summarizeCollection,
+  type CollectionEvent,
+  type CollectionResult,
+} from "@/lib/collection-progress";
 
 export const dynamic = "force-dynamic";
 
@@ -23,63 +29,88 @@ export async function POST(request: Request) {
     env,
   );
   const sources = (await listSources()).filter((source) => source.enabled);
-  const results: Array<{
-    sourceId: string;
-    sourceName: string;
-    ok: boolean;
-    itemsFound?: number;
-    itemsAdded?: number;
-    error?: string;
-  }> = [];
+  async function collect(emit: (event: CollectionEvent) => void = () => {}) {
+    const results: CollectionResult[] = [];
+    const progress = (currentSourceName?: string) => {
+      const { succeeded, failed, itemsAdded } = summarizeCollection(results);
+      emit({
+        type: "progress",
+        total: sources.length,
+        completed: results.length,
+        currentSourceName,
+        succeeded,
+        failed,
+        itemsAdded,
+      });
+    };
 
-  for (const source of sources) {
-    const isTikHub =
-      source.platform === "x" || source.platform === "youtube";
-    const token =
-      personalCredential?.apiKey ||
-      (env.DATA_MODE === "live" ? env.TIKHUB_TOKEN : undefined);
-    if (isTikHub && !token) {
-      results.push({
-        sourceId: source.id,
-        sourceName: source.name,
-        ok: false,
-        error: "未配置 TikHub API Key",
-      });
-      continue;
+    for (const source of sources) {
+      progress(source.name);
+      if (
+        source.platform === "github" &&
+        !isGitHubDailyDue(source.lastSyncedAt)
+      ) {
+        results.push({
+          sourceId: source.id,
+          sourceName: source.name,
+          ok: true,
+          itemsFound: 0,
+          itemsAdded: 0,
+          error: "今日 Star 快照已完成，批量采集已跳过",
+        });
+        progress();
+        continue;
+      }
+      const isTikHub =
+        source.platform === "x" || source.platform === "youtube";
+      const token =
+        personalCredential?.apiKey ||
+        (env.DATA_MODE === "live" ? env.TIKHUB_TOKEN : undefined);
+      if (isTikHub && !token) {
+        results.push({
+          sourceId: source.id,
+          sourceName: source.name,
+          ok: false,
+          error: "未配置 TikHub API Key",
+        });
+        progress();
+        continue;
+      }
+      try {
+        const result = await syncSourceById(
+          source.id,
+          isTikHub ? { ...env, TIKHUB_TOKEN: token } : env,
+          {
+            linuxRssXml:
+              source.platform === "linuxdo" &&
+              typeof linuxFeeds[source.id] === "string"
+                ? linuxFeeds[source.id]
+                : undefined,
+          },
+        );
+        results.push({
+          sourceId: source.id,
+          sourceName: source.name,
+          ok: true,
+          itemsFound: result.itemsFound,
+          itemsAdded: result.itemsAdded,
+        });
+      } catch (error) {
+        results.push({
+          sourceId: source.id,
+          sourceName: source.name,
+          ok: false,
+          error: error instanceof Error ? error.message : "同步失败",
+        });
+      }
+      progress();
     }
-    try {
-      const result = await syncSourceById(
-        source.id,
-        isTikHub ? { ...env, TIKHUB_TOKEN: token } : env,
-        {
-          linuxRssXml:
-            source.platform === "linuxdo" &&
-            typeof linuxFeeds[source.id] === "string"
-              ? linuxFeeds[source.id]
-              : undefined,
-        },
-      );
-      results.push({
-        sourceId: source.id,
-        sourceName: source.name,
-        ok: true,
-        itemsFound: result.itemsFound,
-        itemsAdded: result.itemsAdded,
-      });
-    } catch (error) {
-      results.push({
-        sourceId: source.id,
-        sourceName: source.name,
-        ok: false,
-        error: error instanceof Error ? error.message : "同步失败",
-      });
-    }
+
+    return summarizeCollection(results);
   }
 
-  return Response.json({
-    results,
-    succeeded: results.filter((item) => item.ok).length,
-    failed: results.filter((item) => !item.ok).length,
-    itemsAdded: results.reduce((sum, item) => sum + (item.itemsAdded ?? 0), 0),
-  });
+  if (request.headers.get("Accept")?.includes("application/x-ndjson")) {
+    return collectionProgressResponse(collect);
+  }
+  return Response.json(await collect());
 }

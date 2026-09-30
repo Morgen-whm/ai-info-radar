@@ -2,8 +2,20 @@ import { demoSources } from "@/lib/demo-data";
 import type {
   CollectionJob,
   ContentItem,
+  ContentReview,
+  EditorialPipeline,
+  EditorialTemplate,
+  KnowledgeArticle,
+  KnowledgeCategory,
   NormalizedContentInput,
   Platform,
+  PublicationStatus,
+  ReviewInboxLink,
+  RewriteJob,
+  RewriteJobStage,
+  RewriteJobStatus,
+  ReviewQueueStats,
+  ReviewStatus,
   Source,
   SourceKind,
   WeeklyReport,
@@ -12,6 +24,12 @@ import type {
   WeeklyReportStatusResult,
   WeeklyReportTopic,
 } from "@/lib/types";
+import { normalizeEditorialPipeline } from "@/lib/editorial-pipeline";
+import {
+  createKnowledgeSlug,
+  inferKnowledgeCategory,
+  knowledgeExcerpt,
+} from "@/lib/knowledge";
 import {
   calculateContentValueScore,
   recommendationScore,
@@ -54,7 +72,7 @@ const sourceFromRow = (row: Row): Source => ({
   ),
 });
 
-const contentFromRow = (row: Row): ContentItem => {
+export const contentFromRow = (row: Row): ContentItem => {
   const platform = String(row.platform) as Platform;
   const raw = record(parseJson<Record<string, unknown>>(row.raw_json, {}));
   const storedAuthor = String(row.author_name ?? "");
@@ -111,8 +129,12 @@ const contentFromRow = (row: Row): ContentItem => {
     tags: parseJson<string[]>(row.tags_json, []),
     aiSummary: row.ai_summary ? String(row.ai_summary) : undefined,
     summaryStatus: String(row.summary_status) as ContentItem["summaryStatus"],
-    sourceName: row.source_name ? String(row.source_name) : undefined,
-    sourceTarget: row.source_target ? String(row.source_target) : undefined,
+    sourceName: row.source_name ? String(row.source_name) : raw.radarSearchQuery ? "手动话题搜索" : undefined,
+    sourceTarget: row.source_target ? String(row.source_target) : typeof raw.radarSearchQuery === "string" ? raw.radarSearchQuery : undefined,
+    isRewriteCandidate: Boolean(row.rewrite_candidate_added_at),
+    rewriteCandidateAddedAt: row.rewrite_candidate_added_at
+      ? String(row.rewrite_candidate_added_at)
+      : undefined,
   } satisfies ContentItem;
   item.hotScore = calculateContentValueScore(item);
   return item;
@@ -130,6 +152,196 @@ const jobFromRow = (row: Row): CollectionJob => ({
   errorMessage: row.error_message ? String(row.error_message) : undefined,
   startedAt: String(row.started_at),
   completedAt: row.completed_at ? String(row.completed_at) : null,
+});
+
+const rewriteJobFromRow = (row: Row): RewriteJob => ({
+  id: String(row.id),
+  contentId: String(row.content_id),
+  status: String(row.status) as RewriteJobStatus,
+  stage: String(row.stage) as RewriteJobStage,
+  progress: Number(row.progress ?? 0),
+  message: String(row.message ?? ""),
+  profileId: String(row.profile_id),
+  profileVersion: String(row.profile_version),
+  template: String(row.template) as EditorialTemplate,
+  knowledgeCategory: String(row.knowledge_category) as KnowledgeCategory,
+  errorMessage: row.error_message ? String(row.error_message) : undefined,
+  createdAt: String(row.created_at),
+  updatedAt: String(row.updated_at),
+  completedAt: row.completed_at ? String(row.completed_at) : null,
+});
+
+const reviewFromRow = (row: Row): ContentReview => {
+  const source = contentFromRow(row);
+  const snapshot = parseJson<ContentItem | null>(
+    row.review_source_snapshot_json,
+    null,
+  );
+  const editorialPipeline = normalizeEditorialPipeline(
+    parseJson<Partial<EditorialPipeline>>(
+      row.review_editorial_pipeline_json,
+      {},
+    ),
+    String(row.review_updated_at ?? source.fetchedAt),
+  );
+  return {
+    id: row.review_id ? String(row.review_id) : `review-${source.id}`,
+    contentId: source.id,
+    status: String(row.review_status ?? "pending") as ReviewStatus,
+    sourceTier: String(row.review_source_tier ?? "B") as ContentReview["sourceTier"],
+    template: String(
+      row.review_template ?? "knowledge_card",
+    ) as EditorialTemplate,
+    knowledgeCategory: String(
+      row.review_knowledge_category ?? inferKnowledgeCategory(source),
+    ) as KnowledgeCategory,
+    sourceSnapshot: snapshot?.id ? snapshot : source,
+    aiDraft: String(row.review_ai_draft ?? ""),
+    editorTitle: String(row.review_editor_title ?? source.title),
+    editorContent: String(row.review_editor_content ?? ""),
+    editorNote: String(row.review_editor_note ?? ""),
+    reviewerName: String(row.review_reviewer_name ?? ""),
+    editorialPipeline,
+    reviewedAt: row.reviewed_at ? String(row.reviewed_at) : null,
+    publicationStatus: String(
+      row.review_publication_status ?? "draft",
+    ) as PublicationStatus,
+    feishuDocumentId: row.feishu_document_id
+      ? String(row.feishu_document_id)
+      : undefined,
+    feishuWikiNodeToken: row.feishu_wiki_node_token
+      ? String(row.feishu_wiki_node_token)
+      : undefined,
+    feishuUrl: row.feishu_url ? String(row.feishu_url) : undefined,
+    publishedContentHash: row.published_content_hash
+      ? String(row.published_content_hash)
+      : undefined,
+    publishedAt: row.review_published_at
+      ? String(row.review_published_at)
+      : null,
+    publishError: row.review_publish_error
+      ? String(row.review_publish_error)
+      : undefined,
+    sitePublicationStatus: String(
+      row.review_site_publication_status ?? "draft",
+    ) as PublicationStatus,
+    knowledgeArticleId: row.knowledge_article_id
+      ? String(row.knowledge_article_id)
+      : undefined,
+    siteUrl: row.site_url ? String(row.site_url) : undefined,
+    sitePublishedAt: row.site_published_at
+      ? String(row.site_published_at)
+      : null,
+    sitePublishError: row.site_publish_error
+      ? String(row.site_publish_error)
+      : undefined,
+    createdAt: String(row.review_created_at ?? source.fetchedAt),
+    updatedAt: String(row.review_updated_at ?? source.fetchedAt),
+    source,
+  };
+};
+
+const reviewSelect = `SELECT
+  c.*, s.name AS source_name, s.target AS source_target,
+  rc.added_at AS rewrite_candidate_added_at,
+  r.id AS review_id,
+  r.status AS review_status,
+  r.source_tier AS review_source_tier,
+  r.template AS review_template,
+  r.knowledge_category AS review_knowledge_category,
+  r.source_snapshot_json AS review_source_snapshot_json,
+  r.ai_draft AS review_ai_draft,
+  r.editor_title AS review_editor_title,
+  r.editor_content AS review_editor_content,
+  r.editor_note AS review_editor_note,
+  r.reviewer_name AS review_reviewer_name,
+  r.editorial_pipeline_json AS review_editorial_pipeline_json,
+  r.reviewed_at AS reviewed_at,
+  r.publication_status AS review_publication_status,
+  r.feishu_document_id AS feishu_document_id,
+  r.feishu_wiki_node_token AS feishu_wiki_node_token,
+  r.feishu_url AS feishu_url,
+  r.published_content_hash AS published_content_hash,
+  r.published_at AS review_published_at,
+  r.publish_error AS review_publish_error,
+  r.site_publication_status AS review_site_publication_status,
+  r.knowledge_article_id AS knowledge_article_id,
+  r.site_url AS site_url,
+  r.site_published_at AS site_published_at,
+  r.site_publish_error AS site_publish_error,
+  r.created_at AS review_created_at,
+  r.updated_at AS review_updated_at
+FROM contents c
+LEFT JOIN sources s ON s.id = c.source_id
+LEFT JOIN rewrite_candidates rc ON rc.content_id = c.id
+LEFT JOIN content_reviews r ON r.content_id = c.id`;
+
+const knowledgeFocusSourceIds = [
+  "src-x-codex-skills",
+  "src-x-open-source-projects",
+  "src-x-overseas-practice",
+  "src-yt-tested-tutorials",
+];
+
+const knowledgeFocusKeywords = [
+  "codex",
+  "skill",
+  "mcp",
+  "agent",
+  "workflow",
+  "open source",
+  "github",
+  "gitlab",
+  "tutorial",
+  "how to",
+  "walkthrough",
+  "benchmark",
+  "开源",
+  "教程",
+  "实测",
+  "配置",
+  "部署",
+  "排障",
+  "工作流",
+  "自动化",
+];
+
+function knowledgeFocusFilter(): {
+  clause: string;
+  values: string[];
+} {
+  const sourcePlaceholders = knowledgeFocusSourceIds.map(() => "?").join(", ");
+  const searchable = "LOWER(c.title || ' ' || c.body)";
+  return {
+    clause: `(c.source_id IN (${sourcePlaceholders}) OR (
+      c.hot_score >= 55 AND (
+        ${knowledgeFocusKeywords.map(() => `${searchable} LIKE ?`).join(" OR ")}
+      )
+    ))`,
+    values: [
+      ...knowledgeFocusSourceIds,
+      ...knowledgeFocusKeywords.map((keyword) => `%${keyword.toLowerCase()}%`),
+    ],
+  };
+}
+
+const knowledgeArticleFromRow = (row: Row): KnowledgeArticle => ({
+  id: String(row.id),
+  contentId: String(row.content_id),
+  slug: String(row.slug),
+  category: String(row.category) as KnowledgeCategory,
+  title: String(row.title),
+  excerpt: String(row.excerpt ?? ""),
+  bodyMarkdown: String(row.body_markdown),
+  sourceSnapshot: parseJson<ContentItem>(
+    row.source_snapshot_json,
+    {} as ContentItem,
+  ),
+  tags: parseJson<string[]>(row.tags_json, []),
+  status: String(row.status) as KnowledgeArticle["status"],
+  publishedAt: String(row.published_at),
+  createdAt: String(row.created_at),
+  updatedAt: String(row.updated_at),
 });
 
 export async function getDatabase(): Promise<D1Database> {
@@ -157,6 +369,19 @@ export async function seedDefaultSources(db: D1Database): Promise<void> {
         "src-gitlab-releases",
         "src-gitlab-patches",
       ],
+    },
+    {
+      id: "default-sources-knowledge-focus-v1",
+      sourceIds: [
+        "src-x-codex-skills",
+        "src-x-open-source-projects",
+        "src-x-overseas-practice",
+        "src-yt-tested-tutorials",
+      ],
+    },
+    {
+      id: "default-source-github-ai-star-growth-v1",
+      sourceIds: ["src-github-ai-star-growth"],
     },
   ];
   const appliedMigrationIds = new Set<string>();
@@ -313,9 +538,11 @@ export async function listContents(limit = 50): Promise<ContentItem[]> {
   await ensureDatabase(db);
   const result = await db
     .prepare(
-      `SELECT c.*, s.name AS source_name, s.target AS source_target
+      `SELECT c.*, s.name AS source_name, s.target AS source_target,
+              rc.added_at AS rewrite_candidate_added_at
        FROM contents c
        LEFT JOIN sources s ON s.id = c.source_id
+       LEFT JOIN rewrite_candidates rc ON rc.content_id = c.id
        ORDER BY c.published_at DESC, c.hot_score DESC
        LIMIT ?`,
     )
@@ -333,9 +560,11 @@ export async function listContentsByPeriod(
   await ensureDatabase(db);
   const result = await db
     .prepare(
-      `SELECT c.*, s.name AS source_name, s.target AS source_target
+      `SELECT c.*, s.name AS source_name, s.target AS source_target,
+              rc.added_at AS rewrite_candidate_added_at
        FROM contents c
        LEFT JOIN sources s ON s.id = c.source_id
+       LEFT JOIN rewrite_candidates rc ON rc.content_id = c.id
        WHERE c.published_at >= ? AND c.published_at < ?
        ORDER BY c.published_at DESC, c.hot_score DESC
        LIMIT ?`,
@@ -358,6 +587,808 @@ export async function listRecommendedContents(
   return items
     .sort((a, b) => recommendationScore(b) - recommendationScore(a))
     .slice(0, Math.min(500, Math.max(1, limit)));
+}
+
+export async function getContentById(
+  contentId: string,
+): Promise<ContentItem | null> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const row = await db
+    .prepare(
+      `SELECT c.*, s.name AS source_name, s.target AS source_target,
+              rc.added_at AS rewrite_candidate_added_at
+       FROM contents c
+       LEFT JOIN sources s ON s.id = c.source_id
+       LEFT JOIN rewrite_candidates rc ON rc.content_id = c.id
+       WHERE c.id = ?`,
+    )
+    .bind(contentId)
+    .first<Row>();
+  return row ? contentFromRow(row) : null;
+}
+
+export interface GitHubStarSnapshotInput {
+  repositoryId: string;
+  fullName: string;
+  stars: number;
+  forks: number;
+  capturedDate: string;
+  capturedAt: string;
+  repository: unknown;
+}
+
+export async function saveGitHubStarSnapshots(
+  snapshots: GitHubStarSnapshotInput[],
+): Promise<void> {
+  if (!snapshots.length) return;
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const statements = snapshots.map((snapshot) =>
+    db
+      .prepare(
+        `INSERT INTO github_star_snapshots (
+          id, repository_id, full_name, stars, forks,
+          captured_date, captured_at, repository_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(repository_id, captured_date) DO UPDATE SET
+          full_name = excluded.full_name,
+          stars = excluded.stars,
+          forks = excluded.forks,
+          captured_at = excluded.captured_at,
+          repository_json = excluded.repository_json`,
+      )
+      .bind(
+        `ghs-${snapshot.repositoryId}-${snapshot.capturedDate}`,
+        snapshot.repositoryId,
+        snapshot.fullName,
+        Math.max(0, Math.round(snapshot.stars)),
+        Math.max(0, Math.round(snapshot.forks)),
+        snapshot.capturedDate,
+        snapshot.capturedAt,
+        JSON.stringify(snapshot.repository),
+      ),
+  );
+  for (let index = 0; index < statements.length; index += 50) {
+    await db.batch(statements.slice(index, index + 50));
+  }
+  const retentionDate = new Date(Date.now() - 120 * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  await db
+    .prepare("DELETE FROM github_star_snapshots WHERE captured_date < ?")
+    .bind(retentionDate)
+    .run();
+}
+
+export async function getGitHubStarSnapshotMap(
+  repositoryIds: string[],
+  capturedDate: string,
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (!repositoryIds.length) return result;
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const uniqueIds = [...new Set(repositoryIds)];
+  for (let index = 0; index < uniqueIds.length; index += 80) {
+    const ids = uniqueIds.slice(index, index + 80);
+    const placeholders = ids.map(() => "?").join(", ");
+    const rows = await db
+      .prepare(
+        `SELECT repository_id, stars
+         FROM github_star_snapshots
+         WHERE captured_date = ? AND repository_id IN (${placeholders})`,
+      )
+      .bind(capturedDate, ...ids)
+      .all<Row>();
+    for (const row of rows.results) {
+      result.set(String(row.repository_id), Number(row.stars ?? 0));
+    }
+  }
+  return result;
+}
+
+export async function listContentReviews(options?: {
+  status?: ReviewStatus | "all";
+  query?: string;
+  limit?: number;
+  focus?: "candidates" | "knowledge" | "all";
+}): Promise<ContentReview[]> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const status = options?.status ?? "all";
+  const query = options?.query?.trim().toLowerCase() ?? "";
+  const limit = Math.min(300, Math.max(1, options?.limit ?? 120));
+  const clauses: string[] = [];
+  const values: Array<string | number> = [];
+  const focusMode = options?.focus ?? "all";
+  if (focusMode === "candidates") {
+    clauses.push("rc.content_id IS NOT NULL");
+  } else if (focusMode === "knowledge") {
+    const focus = knowledgeFocusFilter();
+    clauses.push(focus.clause);
+    values.push(...focus.values);
+  }
+  if (status !== "all") {
+    clauses.push("COALESCE(r.status, 'pending') = ?");
+    values.push(status);
+  }
+  if (query) {
+    clauses.push(
+      "LOWER(c.title || ' ' || c.body || ' ' || c.author_name) LIKE ?",
+    );
+    values.push(`%${query}%`);
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+  const knowledgeFocused = focusMode === "knowledge";
+  const candidateFocused = focusMode === "candidates";
+  const result = await db
+    .prepare(
+      `${reviewSelect}
+       ${where}
+       ORDER BY
+         CASE COALESCE(r.status, 'pending')
+           WHEN 'needs_revision' THEN 0
+           WHEN 'pending' THEN 1
+           WHEN 'approved' THEN 2
+           ELSE 3
+         END,
+         ${candidateFocused ? "rc.added_at DESC, c.hot_score DESC" : knowledgeFocused ? "c.hot_score DESC, c.published_at DESC" : "c.published_at DESC, c.hot_score DESC"}
+       LIMIT ?`,
+    )
+    .bind(...values, limit)
+    .all<Row>();
+  return result.results.map(reviewFromRow);
+}
+
+export async function listPublishedFeishuReviews(
+  limit = 2_000,
+): Promise<ContentReview[]> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const result = await db
+    .prepare(
+      `${reviewSelect}
+       WHERE r.publication_status = 'published'
+         AND r.status = 'approved'
+       ORDER BY r.published_at ASC, r.updated_at ASC
+       LIMIT ?`,
+    )
+    .bind(Math.min(5_000, Math.max(1, limit)))
+    .all<Row>();
+  return result.results.map(reviewFromRow);
+}
+
+export async function getContentReview(
+  contentId: string,
+): Promise<ContentReview | null> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const row = await db
+    .prepare(`${reviewSelect} WHERE c.id = ?`)
+    .bind(contentId)
+    .first<Row>();
+  return row ? reviewFromRow(row) : null;
+}
+
+export async function getReviewQueueStats(
+  focus: "candidates" | "knowledge" | "all" = "candidates",
+): Promise<ReviewQueueStats> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const focusFilter = focus === "knowledge" ? knowledgeFocusFilter() : null;
+  const focusWhere =
+    focus === "candidates"
+      ? "WHERE EXISTS (SELECT 1 FROM rewrite_candidates rc WHERE rc.content_id = c.id)"
+      : focusFilter
+        ? `WHERE ${focusFilter.clause}`
+        : "";
+  const [statuses, published, sitePublished] = await Promise.all([
+    db
+      .prepare(
+        `SELECT COALESCE(r.status, 'pending') AS status, COUNT(*) AS count
+         FROM contents c
+         LEFT JOIN content_reviews r ON r.content_id = c.id
+         ${focusWhere}
+         GROUP BY COALESCE(r.status, 'pending')`,
+      )
+      .bind(...(focusFilter?.values ?? []))
+      .all<Row>(),
+    db
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM content_reviews
+         WHERE publication_status = 'published'`,
+      )
+      .first<Row>(),
+    db
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM knowledge_articles
+         WHERE status = 'published'`,
+      )
+      .first<Row>(),
+  ]);
+  const stats: ReviewQueueStats = {
+    pending: 0,
+    approved: 0,
+    needsRevision: 0,
+    rejected: 0,
+    published: Number(published?.count ?? 0),
+    sitePublished: Number(sitePublished?.count ?? 0),
+  };
+  for (const row of statuses.results) {
+    const count = Number(row.count ?? 0);
+    if (row.status === "approved") stats.approved = count;
+    if (row.status === "rejected") stats.rejected = count;
+    if (row.status === "needs_revision") stats.needsRevision = count;
+    if (row.status === "pending") stats.pending = count;
+  }
+  return stats;
+}
+
+export async function setRewriteCandidate(
+  contentId: string,
+  selected: boolean,
+): Promise<ContentItem | null> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const content = await db
+    .prepare("SELECT id FROM contents WHERE id = ?")
+    .bind(contentId)
+    .first<{ id: string }>();
+  if (!content) return null;
+
+  if (selected) {
+    await db
+      .prepare(
+        `INSERT INTO rewrite_candidates (content_id, added_at)
+         VALUES (?, ?)
+         ON CONFLICT(content_id) DO NOTHING`,
+      )
+      .bind(contentId, new Date().toISOString())
+      .run();
+  } else {
+    await db
+      .prepare("DELETE FROM rewrite_candidates WHERE content_id = ?")
+      .bind(contentId)
+      .run();
+  }
+
+  return getContentById(contentId);
+}
+
+export async function countRewriteCandidates(): Promise<number> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const row = await db
+    .prepare("SELECT COUNT(*) AS count FROM rewrite_candidates")
+    .first<{ count: number }>();
+  return Number(row?.count ?? 0);
+}
+
+export async function listReviewInboxLinks(): Promise<ReviewInboxLink[]> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const result = await db
+    .prepare(
+      `SELECT content_id, url, title, platform, author_name, added_at
+       FROM review_inbox_links
+       ORDER BY added_at DESC`,
+    )
+    .all<Row>();
+  return result.results.map((row) => ({
+    contentId: String(row.content_id),
+    url: String(row.url),
+    title: String(row.title),
+    platform: String(row.platform) as Platform,
+    authorName: String(row.author_name ?? ""),
+    addedAt: String(row.added_at),
+  }));
+}
+
+export async function saveReviewInboxLink(
+  contentId: string,
+): Promise<ReviewInboxLink | null> {
+  const content = await getContentById(contentId);
+  if (!content) return null;
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const addedAt = new Date().toISOString();
+  await db
+    .prepare(
+      `INSERT INTO review_inbox_links (
+         content_id, url, title, platform, author_name, added_at
+       ) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(content_id) DO UPDATE SET
+         url = excluded.url,
+         title = excluded.title,
+         platform = excluded.platform,
+         author_name = excluded.author_name`,
+    )
+    .bind(
+      content.id,
+      content.url,
+      content.title,
+      content.platform,
+      content.authorName,
+      addedAt,
+    )
+    .run();
+
+  return {
+    contentId: content.id,
+    url: content.url,
+    title: content.title,
+    platform: content.platform,
+    authorName: content.authorName,
+    addedAt,
+  };
+}
+
+export async function createRewriteJob(input: {
+  contentId: string;
+  profileId: string;
+  profileVersion: string;
+  template: EditorialTemplate;
+  knowledgeCategory: KnowledgeCategory;
+}): Promise<RewriteJob | null> {
+  const content = await getContentById(input.contentId);
+  if (!content) return null;
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const now = new Date().toISOString();
+  const id = `rewrite-${crypto.randomUUID()}`;
+  await db
+    .prepare(
+      `INSERT INTO rewrite_jobs (
+        id, content_id, status, stage, progress, message,
+        profile_id, profile_version, template, knowledge_category,
+        error_message, created_at, updated_at, completed_at
+       ) VALUES (?, ?, 'queued', 'queued', 0, '等待补全原始内容', ?, ?, ?, ?, NULL, ?, ?, NULL)
+       ON CONFLICT(content_id) DO UPDATE SET
+         id = excluded.id,
+         status = 'queued',
+         stage = 'queued',
+         progress = 0,
+         message = excluded.message,
+         profile_id = excluded.profile_id,
+         profile_version = excluded.profile_version,
+         template = excluded.template,
+         knowledge_category = excluded.knowledge_category,
+         error_message = NULL,
+         created_at = excluded.created_at,
+         updated_at = excluded.updated_at,
+         completed_at = NULL`,
+    )
+    .bind(
+      id,
+      input.contentId,
+      input.profileId,
+      input.profileVersion,
+      input.template,
+      input.knowledgeCategory,
+      now,
+      now,
+    )
+    .run();
+  return getRewriteJob(id);
+}
+
+export async function getRewriteJob(jobId: string): Promise<RewriteJob | null> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const row = await db
+    .prepare("SELECT * FROM rewrite_jobs WHERE id = ?")
+    .bind(jobId)
+    .first<Row>();
+  return row ? rewriteJobFromRow(row) : null;
+}
+
+export async function getRewriteJobByContentId(
+  contentId: string,
+): Promise<RewriteJob | null> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const row = await db
+    .prepare("SELECT * FROM rewrite_jobs WHERE content_id = ?")
+    .bind(contentId)
+    .first<Row>();
+  return row ? rewriteJobFromRow(row) : null;
+}
+
+export async function listRewriteJobsForContents(
+  contentIds: string[],
+): Promise<RewriteJob[]> {
+  const ids = [...new Set(contentIds.filter(Boolean))].slice(0, 500);
+  if (!ids.length) return [];
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const jobs: RewriteJob[] = [];
+  for (let index = 0; index < ids.length; index += 80) {
+    const chunk = ids.slice(index, index + 80);
+    const placeholders = chunk.map(() => "?").join(", ");
+    const result = await db
+      .prepare(
+        `SELECT * FROM rewrite_jobs
+         WHERE content_id IN (${placeholders})`,
+      )
+      .bind(...chunk)
+      .all<Row>();
+    jobs.push(...result.results.map(rewriteJobFromRow));
+  }
+  return jobs.sort((left, right) =>
+    right.updatedAt.localeCompare(left.updatedAt),
+  );
+}
+
+export async function updateRewriteJob(
+  jobId: string,
+  input: Partial<
+    Pick<
+      RewriteJob,
+      | "status"
+      | "stage"
+      | "progress"
+      | "message"
+      | "errorMessage"
+      | "completedAt"
+    >
+  >,
+): Promise<RewriteJob | null> {
+  const current = await getRewriteJob(jobId);
+  if (!current) return null;
+  const db = await getDatabase();
+  const now = new Date().toISOString();
+  await db
+    .prepare(
+      `UPDATE rewrite_jobs SET
+         status = ?, stage = ?, progress = ?, message = ?,
+         error_message = ?, updated_at = ?, completed_at = ?
+       WHERE id = ?`,
+    )
+    .bind(
+      input.status ?? current.status,
+      input.stage ?? current.stage,
+      Math.max(0, Math.min(100, input.progress ?? current.progress)),
+      input.message ?? current.message,
+      input.errorMessage === undefined
+        ? current.errorMessage ?? null
+        : input.errorMessage || null,
+      now,
+      input.completedAt === undefined
+        ? current.completedAt
+        : input.completedAt,
+      jobId,
+    )
+    .run();
+  return getRewriteJob(jobId);
+}
+
+export async function saveContentReview(
+  contentId: string,
+  input: Partial<
+    Pick<
+      ContentReview,
+      | "status"
+      | "sourceTier"
+      | "template"
+      | "knowledgeCategory"
+      | "aiDraft"
+      | "editorTitle"
+      | "editorContent"
+      | "editorNote"
+      | "reviewerName"
+    >
+  > & { editorialPipeline?: Partial<EditorialPipeline> },
+): Promise<ContentReview | null> {
+  const source = await getContentById(contentId);
+  if (!source) return null;
+  const db = await getDatabase();
+  const existing = await db
+    .prepare("SELECT * FROM content_reviews WHERE content_id = ?")
+    .bind(contentId)
+    .first<Row>();
+  const now = new Date().toISOString();
+  const status = input.status ?? String(existing?.status ?? "pending");
+  const reviewedAt =
+    status === "approved" || status === "rejected"
+      ? now
+      : existing?.reviewed_at
+        ? String(existing.reviewed_at)
+        : null;
+  const storedPipeline = normalizeEditorialPipeline(
+    parseJson<Partial<EditorialPipeline>>(
+      existing?.editorial_pipeline_json,
+      {},
+    ),
+    existing?.updated_at ? String(existing.updated_at) : now,
+  );
+  const editorialPipeline = input.editorialPipeline
+    ? normalizeEditorialPipeline(
+        {
+          ...storedPipeline,
+          ...input.editorialPipeline,
+          updatedAt: now,
+          lastError: input.editorialPipeline.lastError,
+        },
+        now,
+      )
+    : storedPipeline;
+  await db
+    .prepare(
+      `INSERT INTO content_reviews (
+        id, content_id, status, source_tier, template, knowledge_category,
+        source_snapshot_json,
+        ai_draft, editor_title, editor_content, editor_note, reviewer_name,
+        editorial_pipeline_json, reviewed_at, publication_status, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)
+       ON CONFLICT(content_id) DO UPDATE SET
+         status = excluded.status,
+         source_tier = excluded.source_tier,
+         template = excluded.template,
+         knowledge_category = excluded.knowledge_category,
+         ai_draft = excluded.ai_draft,
+         editor_title = excluded.editor_title,
+         editor_content = excluded.editor_content,
+         editor_note = excluded.editor_note,
+         reviewer_name = excluded.reviewer_name,
+         editorial_pipeline_json = excluded.editorial_pipeline_json,
+         reviewed_at = excluded.reviewed_at,
+         publication_status = CASE
+           WHEN content_reviews.publication_status = 'published'
+             AND (content_reviews.editor_title != excluded.editor_title
+               OR content_reviews.editor_content != excluded.editor_content)
+           THEN 'draft'
+           ELSE content_reviews.publication_status
+         END,
+         site_publication_status = CASE
+           WHEN content_reviews.site_publication_status = 'published'
+             AND (content_reviews.editor_title != excluded.editor_title
+               OR content_reviews.editor_content != excluded.editor_content
+               OR content_reviews.knowledge_category != excluded.knowledge_category)
+           THEN 'draft'
+           ELSE content_reviews.site_publication_status
+         END,
+         publish_error = NULL,
+         site_publish_error = NULL,
+         updated_at = excluded.updated_at`,
+    )
+    .bind(
+      existing?.id ? String(existing.id) : `review-${crypto.randomUUID()}`,
+      contentId,
+      status,
+      input.sourceTier ?? String(existing?.source_tier ?? "B"),
+      input.template ?? String(existing?.template ?? "knowledge_card"),
+      input.knowledgeCategory ??
+        String(existing?.knowledge_category ?? inferKnowledgeCategory(source)),
+      existing?.source_snapshot_json
+        ? String(existing.source_snapshot_json)
+        : JSON.stringify(source),
+      input.aiDraft ?? String(existing?.ai_draft ?? ""),
+      input.editorTitle ?? String(existing?.editor_title ?? source.title),
+      input.editorContent ?? String(existing?.editor_content ?? ""),
+      input.editorNote ?? String(existing?.editor_note ?? ""),
+      input.reviewerName ?? String(existing?.reviewer_name ?? ""),
+      JSON.stringify(editorialPipeline),
+      reviewedAt,
+      existing?.created_at ? String(existing.created_at) : now,
+      now,
+    )
+    .run();
+  return getContentReview(contentId);
+}
+
+export async function setReviewPublicationState(
+  contentId: string,
+  input: {
+    status: PublicationStatus;
+    documentId?: string;
+    wikiNodeToken?: string;
+    url?: string;
+    contentHash?: string;
+    error?: string;
+  },
+): Promise<ContentReview | null> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const now = new Date().toISOString();
+  await db
+    .prepare(
+      `UPDATE content_reviews
+       SET publication_status = ?,
+           feishu_document_id = COALESCE(?, feishu_document_id),
+           feishu_wiki_node_token = COALESCE(?, feishu_wiki_node_token),
+           feishu_url = COALESCE(?, feishu_url),
+           published_content_hash = COALESCE(?, published_content_hash),
+           published_at = CASE WHEN ? = 'published' THEN ? ELSE published_at END,
+           publish_error = ?,
+           updated_at = ?
+       WHERE content_id = ?`,
+    )
+    .bind(
+      input.status,
+      input.documentId ?? null,
+      input.wikiNodeToken ?? null,
+      input.url ?? null,
+      input.contentHash ?? null,
+      input.status,
+      now,
+      input.error ?? null,
+      now,
+      contentId,
+    )
+    .run();
+  return getContentReview(contentId);
+}
+
+export async function setReviewSitePublicationState(
+  contentId: string,
+  input: {
+    status: PublicationStatus;
+    articleId?: string;
+    url?: string;
+    error?: string;
+  },
+): Promise<ContentReview | null> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const now = new Date().toISOString();
+  await db
+    .prepare(
+      `UPDATE content_reviews
+       SET site_publication_status = ?,
+           knowledge_article_id = COALESCE(?, knowledge_article_id),
+           site_url = COALESCE(?, site_url),
+           site_published_at = CASE
+             WHEN ? = 'published' THEN COALESCE(site_published_at, ?)
+             ELSE site_published_at
+           END,
+           site_publish_error = ?,
+           updated_at = ?
+       WHERE content_id = ?`,
+    )
+    .bind(
+      input.status,
+      input.articleId ?? null,
+      input.url ?? null,
+      input.status,
+      now,
+      input.error ?? null,
+      now,
+      contentId,
+    )
+    .run();
+  return getContentReview(contentId);
+}
+
+export async function publishReviewToKnowledgeSite(
+  review: ContentReview,
+): Promise<{ review: ContentReview; article: KnowledgeArticle }> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const existing = await db
+    .prepare("SELECT id, slug, published_at, created_at FROM knowledge_articles WHERE content_id = ?")
+    .bind(review.contentId)
+    .first<Row>();
+  const now = new Date().toISOString();
+  const articleId = existing?.id
+    ? String(existing.id)
+    : `knowledge-${crypto.randomUUID()}`;
+  const slug = existing?.slug
+    ? String(existing.slug)
+    : createKnowledgeSlug(
+        review.editorTitle,
+        review.contentId,
+        review.knowledgeCategory,
+      );
+  const publishedAt = existing?.published_at
+    ? String(existing.published_at)
+    : now;
+  const createdAt = existing?.created_at ? String(existing.created_at) : now;
+  const siteUrl = `/knowledge/${slug}`;
+
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO knowledge_articles (
+          id, content_id, slug, category, title, excerpt, body_markdown,
+          source_snapshot_json, tags_json, status, published_at, created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', ?, ?, ?)
+        ON CONFLICT(content_id) DO UPDATE SET
+          category = excluded.category,
+          title = excluded.title,
+          excerpt = excluded.excerpt,
+          body_markdown = excluded.body_markdown,
+          source_snapshot_json = excluded.source_snapshot_json,
+          tags_json = excluded.tags_json,
+          status = 'published',
+          updated_at = excluded.updated_at`,
+      )
+      .bind(
+        articleId,
+        review.contentId,
+        slug,
+        review.knowledgeCategory,
+        review.editorTitle,
+        knowledgeExcerpt(review.editorContent),
+        review.editorContent,
+        JSON.stringify(review.sourceSnapshot),
+        JSON.stringify(review.sourceSnapshot.tags),
+        publishedAt,
+        createdAt,
+        now,
+      ),
+    db
+      .prepare(
+        `UPDATE content_reviews
+         SET site_publication_status = 'published',
+             knowledge_article_id = ?,
+             site_url = ?,
+             site_published_at = COALESCE(site_published_at, ?),
+             site_publish_error = NULL,
+             updated_at = ?
+         WHERE content_id = ?`,
+      )
+      .bind(articleId, siteUrl, now, now, review.contentId),
+  ]);
+
+  const [updatedReview, article] = await Promise.all([
+    getContentReview(review.contentId),
+    getKnowledgeArticleBySlug(slug),
+  ]);
+  if (!updatedReview || !article) {
+    throw new Error("知识库文章发布后读取失败");
+  }
+  return { review: updatedReview, article };
+}
+
+export async function listKnowledgeArticles(options?: {
+  category?: KnowledgeCategory | "all";
+  query?: string;
+  limit?: number;
+}): Promise<KnowledgeArticle[]> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const category = options?.category ?? "all";
+  const query = options?.query?.trim().toLowerCase() ?? "";
+  const clauses = ["status = 'published'"];
+  const values: Array<string | number> = [];
+  if (category !== "all") {
+    clauses.push("category = ?");
+    values.push(category);
+  }
+  if (query) {
+    clauses.push("LOWER(title || ' ' || excerpt || ' ' || body_markdown) LIKE ?");
+    values.push(`%${query}%`);
+  }
+  const rows = await db
+    .prepare(
+      `SELECT * FROM knowledge_articles
+       WHERE ${clauses.join(" AND ")}
+       ORDER BY published_at DESC, updated_at DESC
+       LIMIT ?`,
+    )
+    .bind(...values, Math.min(500, Math.max(1, options?.limit ?? 120)))
+    .all<Row>();
+  return rows.results.map(knowledgeArticleFromRow);
+}
+
+export async function getKnowledgeArticleBySlug(
+  slug: string,
+): Promise<KnowledgeArticle | null> {
+  const db = await getDatabase();
+  await ensureDatabase(db);
+  const row = await db
+    .prepare(
+      `SELECT * FROM knowledge_articles
+       WHERE slug = ? AND status = 'published'
+       LIMIT 1`,
+    )
+    .bind(slug)
+    .first<Row>();
+  return row ? knowledgeArticleFromRow(row) : null;
 }
 
 export async function getContentStats(): Promise<{
@@ -388,6 +1419,7 @@ export async function getContentStats(): Promise<{
     linuxdo: 0,
     idcflare: 0,
     gitlab: 0,
+    github: 0,
   };
   for (const row of groups.results) {
     const platform = String(row.platform) as Platform;

@@ -321,7 +321,8 @@ const candidateScore = (
     8,
     newsTerms.filter((term) => text.includes(term)).length * 2,
   );
-  const officialBonus = item.platform === "gitlab" ? 5 : 0;
+  const officialBonus =
+    item.platform === "gitlab" ? 5 : item.platform === "github" ? 8 : 0;
   const completenessBonus =
     (item.authorName && item.authorName !== "未知作者" ? 2 : 0) +
     (item.aiSummary ? 2 : 0);
@@ -349,7 +350,7 @@ const candidateScore = (
 };
 
 const isStrongWeeklySignal = (item: ContentItem) => {
-  if (item.platform === "gitlab") return true;
+  if (item.platform === "gitlab" || item.platform === "github") return true;
   const title = item.title.toLowerCase();
   const lowValueDiscussion =
     /求推荐|求助|请教|需要一台|想出一台|想拼|拼车|人找车|车找人|会不会|能不能|多少合适|何去何从|手把手|保姆级/.test(
@@ -689,7 +690,8 @@ export async function generateWeeklyReport(options?: {
           candidate.baseScore >= 58 &&
           isStrongWeeklySignal(candidate.item) &&
           (candidate.topics.length > 0 ||
-            candidate.item.platform === "gitlab"),
+            candidate.item.platform === "gitlab" ||
+            candidate.item.platform === "github"),
       );
     const selected = balancedSelection(clusterCandidates(candidates));
     const topics = selected.map((cluster, index) =>

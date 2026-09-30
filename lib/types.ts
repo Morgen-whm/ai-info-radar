@@ -3,9 +3,10 @@ export type Platform =
   | "youtube"
   | "linuxdo"
   | "idcflare"
-  | "gitlab";
+  | "gitlab"
+  | "github";
 export type SourceKind = "trending" | "keyword" | "account" | "channel" | "feed";
-export type ContentType = "post" | "video" | "short" | "topic";
+export type ContentType = "post" | "video" | "short" | "topic" | "repository";
 
 export interface Source {
   id: string;
@@ -31,6 +32,12 @@ export interface ContentMetrics {
   quotes?: number;
   bookmarks?: number;
   authorFollowers?: number;
+  stars?: number;
+  forks?: number;
+  openIssues?: number;
+  starGrowth24h?: number;
+  starGrowth7d?: number;
+  starGrowthRate?: number;
 }
 
 export interface ContentItem {
@@ -55,6 +62,17 @@ export interface ContentItem {
   topicId?: string;
   sourceName?: string;
   sourceTarget?: string;
+  isRewriteCandidate?: boolean;
+  rewriteCandidateAddedAt?: string;
+}
+
+export interface ReviewInboxLink {
+  contentId: string;
+  url: string;
+  title: string;
+  platform: Platform;
+  authorName: string;
+  addedAt: string;
 }
 
 export interface TopicSource {
@@ -174,4 +192,244 @@ export interface WeeklyReportStatusResult {
   generatedAt: string | null;
   itemCount: number;
   errorMessage?: string;
+}
+
+export type ReviewStatus =
+  | "pending"
+  | "approved"
+  | "needs_revision"
+  | "rejected";
+
+export type EditorialTemplate = "brief" | "knowledge_card" | "deep_dive";
+
+export type KnowledgeCategory =
+  | "codex_skills"
+  | "open_source"
+  | "overseas_practice"
+  | "tested_tutorial";
+
+export type PublicationStatus =
+  | "draft"
+  | "publishing"
+  | "published"
+  | "failed";
+
+export type EditorialPipelineStage =
+  | "source"
+  | "related"
+  | "evidence"
+  | "angles"
+  | "draft"
+  | "polished"
+  | "fact_checked"
+  | "formatted"
+  | "human_review";
+
+export interface RelatedEditorialMaterial {
+  contentId: string;
+  platform: Platform;
+  title: string;
+  url: string;
+  authorName: string;
+  sourceName?: string;
+  publishedAt: string;
+  hotScore: number;
+  relevanceScore: number;
+  matchedTerms: string[];
+  excerpt: string;
+}
+
+export interface EditorialEvidenceClaim {
+  id: string;
+  claim: string;
+  type: "fact" | "context" | "opinion";
+  support: "cross_source" | "single_source" | "unverified" | "conflict";
+  sourceIds: string[];
+  note?: string;
+}
+
+export interface EditorialEvidencePack {
+  subject: string;
+  summary: string;
+  claims: EditorialEvidenceClaim[];
+  conflicts: string[];
+  gaps: string[];
+  sourceCount: number;
+  generatedAt: string;
+}
+
+export interface EditorialWritingAngle {
+  id: string;
+  title: string;
+  thesis: string;
+  readerValue: string;
+  outline: string[];
+  novelty: string;
+  evidenceClaimIds: string[];
+  risks: string[];
+  recommended: boolean;
+}
+
+export interface EditorialFactCheckIssue {
+  claim: string;
+  severity: "high" | "medium" | "low";
+  status: "supported" | "partially_supported" | "unsupported" | "conflict";
+  sourceIds: string[];
+  suggestion: string;
+}
+
+export interface EditorialFactCheckReport {
+  checkedAt: string;
+  claimsChecked: number;
+  supported: number;
+  needsReview: number;
+  issues: EditorialFactCheckIssue[];
+}
+
+export interface EditorialFormatCheckReport {
+  checkedAt: string;
+  passed: boolean;
+  issues: string[];
+  fixesApplied: string[];
+}
+
+export interface EditorialThreadItem {
+  id: string;
+  kind: "primary" | "thread" | "quoted" | "comment";
+  text: string;
+  authorName: string;
+  authorHandle?: string;
+  url?: string;
+  publishedAt?: string;
+}
+
+export interface EditorialMediaAsset {
+  id: string;
+  kind: "image" | "video" | "thumbnail";
+  url: string;
+  previewUrl?: string;
+  alt: string;
+  sourceUrl: string;
+}
+
+export interface EditorialSourceBundle {
+  contentId: string;
+  platform: Platform;
+  fullText: string;
+  description?: string;
+  transcript?: string;
+  transcriptLanguage?: string;
+  thread: EditorialThreadItem[];
+  media: EditorialMediaAsset[];
+  chapters: string[];
+  warnings: string[];
+  requestIds: string[];
+  enrichedAt: string;
+}
+
+export interface EditorialPipeline {
+  stage: EditorialPipelineStage;
+  writingProfileId: string;
+  writingProfileVersion: string;
+  sourceBundle: EditorialSourceBundle | null;
+  relatedMaterials: RelatedEditorialMaterial[];
+  evidencePack: EditorialEvidencePack | null;
+  writingAngles: EditorialWritingAngle[];
+  selectedAngleId: string;
+  factCheck: EditorialFactCheckReport | null;
+  formatCheck: EditorialFormatCheckReport | null;
+  lastError?: string;
+  updatedAt: string;
+}
+
+export type RewriteJobStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed";
+
+export type RewriteJobStage =
+  | "queued"
+  | "enriching"
+  | "related"
+  | "evidence"
+  | "angles"
+  | "draft"
+  | "polish"
+  | "fact_check"
+  | "format"
+  | "human_review";
+
+export interface RewriteJob {
+  id: string;
+  contentId: string;
+  status: RewriteJobStatus;
+  stage: RewriteJobStage;
+  progress: number;
+  message: string;
+  profileId: string;
+  profileVersion: string;
+  template: EditorialTemplate;
+  knowledgeCategory: KnowledgeCategory;
+  errorMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+}
+
+export interface ContentReview {
+  id: string;
+  contentId: string;
+  status: ReviewStatus;
+  sourceTier: "S" | "A" | "B" | "C";
+  template: EditorialTemplate;
+  knowledgeCategory: KnowledgeCategory;
+  sourceSnapshot: ContentItem;
+  aiDraft: string;
+  editorTitle: string;
+  editorContent: string;
+  editorNote: string;
+  reviewerName: string;
+  editorialPipeline: EditorialPipeline;
+  reviewedAt: string | null;
+  publicationStatus: PublicationStatus;
+  feishuDocumentId?: string;
+  feishuWikiNodeToken?: string;
+  feishuUrl?: string;
+  publishedContentHash?: string;
+  publishedAt: string | null;
+  publishError?: string;
+  sitePublicationStatus: PublicationStatus;
+  knowledgeArticleId?: string;
+  siteUrl?: string;
+  sitePublishedAt: string | null;
+  sitePublishError?: string;
+  createdAt: string;
+  updatedAt: string;
+  source: ContentItem;
+}
+
+export interface ReviewQueueStats {
+  pending: number;
+  approved: number;
+  needsRevision: number;
+  rejected: number;
+  published: number;
+  sitePublished: number;
+}
+
+export interface KnowledgeArticle {
+  id: string;
+  contentId: string;
+  slug: string;
+  category: KnowledgeCategory;
+  title: string;
+  excerpt: string;
+  bodyMarkdown: string;
+  sourceSnapshot: ContentItem;
+  tags: string[];
+  status: "published" | "archived";
+  publishedAt: string;
+  createdAt: string;
+  updatedAt: string;
 }

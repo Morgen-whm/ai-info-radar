@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { ContentCard } from "@/components/ContentCard";
-import type { ContentItem, Platform } from "@/lib/types";
+import type { ContentItem, Platform, RewriteJob } from "@/lib/types";
 import { recommendationScore } from "@/lib/content-value";
 
 const filters: Array<{ value: "all" | Platform; label: string }> = [
@@ -12,15 +13,42 @@ const filters: Array<{ value: "all" | Platform; label: string }> = [
   { value: "linuxdo", label: "Linux.do" },
   { value: "idcflare", label: "IDCFlare" },
   { value: "gitlab", label: "GitLab" },
+  { value: "github", label: "GitHub" },
 ];
 
-export function FeedExplorer({ initialItems }: { initialItems: ContentItem[] }) {
+const INITIAL_VISIBLE_ITEMS = 30;
+const LOAD_MORE_ITEMS = 30;
+
+export function FeedExplorer({
+  initialItems,
+  initialCandidateCount,
+  initialReviewInboxIds,
+  candidateEnabled,
+  initialRewriteJobs,
+}: {
+  initialItems: ContentItem[];
+  initialCandidateCount: number;
+  initialReviewInboxIds: string[];
+  candidateEnabled: boolean;
+  initialRewriteJobs: RewriteJob[];
+}) {
   const [platform, setPlatform] = useState<"all" | Platform>("all");
   const [sort, setSort] = useState<"recommended" | "latest" | "value">(
     "recommended",
   );
   const [minValue, setMinValue] = useState(50);
   const [query, setQuery] = useState("");
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_ITEMS);
+  const [candidateCount, setCandidateCount] = useState(initialCandidateCount);
+  const [reviewInboxIds, setReviewInboxIds] = useState(
+    () => new Set(initialReviewInboxIds),
+  );
+  const [rewriteJobs, setRewriteJobs] = useState<Record<string, RewriteJob>>(
+    () =>
+      Object.fromEntries(
+        initialRewriteJobs.map((job) => [job.contentId, job]),
+      ),
+  );
 
   const items = useMemo(() => {
     return initialItems
@@ -44,6 +72,12 @@ export function FeedExplorer({ initialItems }: { initialItems: ContentItem[] }) 
         );
       });
   }, [initialItems, minValue, platform, query, sort]);
+
+  useEffect(() => {
+    setVisibleCount(INITIAL_VISIBLE_ITEMS);
+  }, [minValue, platform, query, sort]);
+
+  const visibleItems = items.slice(0, visibleCount);
 
   return (
     <>
@@ -94,15 +128,65 @@ export function FeedExplorer({ initialItems }: { initialItems: ContentItem[] }) 
         </select>
       </section>
       <div className="result-line">
-        <span>找到 {items.length} 条信息</span>
-        <span>保留多语言 · 推荐依据可见 · AI 摘要已启用</span>
+        <span>
+          找到 {items.length} 条信息
+          {items.length > visibleItems.length
+            ? ` · 当前显示 ${visibleItems.length} 条`
+            : ""}
+        </span>
+        <span className="candidate-summary">
+          <Link href="/review#review-inbox">审核收件箱 {reviewInboxIds.size} 条</Link>
+          <Link href="/review">改写备选 {candidateCount} 条</Link>
+          <span>保留多语言 · 推荐依据可见 · AI 摘要已启用</span>
+        </span>
       </div>
       {items.length ? (
-        <section className="content-grid feed-grid">
-          {items.map((item) => (
-            <ContentCard item={item} key={item.id} />
-          ))}
-        </section>
+        <>
+          <section className="content-grid feed-grid">
+            {visibleItems.map((item) => (
+              <ContentCard
+                item={item}
+                key={item.id}
+                candidateEnabled={candidateEnabled}
+                initialInReviewInbox={reviewInboxIds.has(item.id)}
+                initialRewriteJob={rewriteJobs[item.id] || null}
+                onRewriteJobChange={(job) =>
+                  setRewriteJobs((current) => ({
+                    ...current,
+                    [job.contentId]: job,
+                  }))
+                }
+                onCandidateChange={(_contentId, selected) =>
+                  setCandidateCount((current) =>
+                    Math.max(0, current + (selected ? 1 : -1)),
+                  )
+                }
+                onReviewInboxChange={(contentId) =>
+                  setReviewInboxIds((current) => {
+                    const next = new Set(current);
+                    next.add(contentId);
+                    return next;
+                  })
+                }
+              />
+            ))}
+          </section>
+          {visibleItems.length < items.length ? (
+            <div className="feed-load-more">
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() =>
+                  setVisibleCount((current) =>
+                    Math.min(items.length, current + LOAD_MORE_ITEMS),
+                  )
+                }
+              >
+                继续显示 {Math.min(LOAD_MORE_ITEMS, items.length - visibleItems.length)} 条
+              </button>
+            </div>
+          ) : null}
+        </>
       ) : (
         <div className="empty-state">
           <strong>没有匹配内容</strong>

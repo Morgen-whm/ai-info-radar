@@ -12,6 +12,18 @@ import { fetchSource } from "./connectors";
 import { getSourceCollectionConfig } from "./source-config";
 import { calculateContentValueScore } from "./content-value";
 
+const shanghaiDate = (value: number) =>
+  new Date(value + 8 * 3_600_000).toISOString().slice(0, 10);
+
+export function isGitHubDailyDue(
+  lastSyncedAt: string | null,
+  now = Date.now(),
+): boolean {
+  if (!lastSyncedAt) return true;
+  const last = Date.parse(lastSyncedAt);
+  return !Number.isFinite(last) || shanghaiDate(now) !== shanghaiDate(last);
+}
+
 export async function syncSourceById(
   sourceId: string,
   env: AppEnv,
@@ -85,7 +97,10 @@ export async function syncAllDueSources(env: AppEnv) {
     const last = source.lastSyncedAt
       ? new Date(source.lastSyncedAt).getTime()
       : 0;
-    const due = Date.now() - last >= source.intervalMinutes * 60_000;
+    const due =
+      source.platform === "github"
+        ? isGitHubDailyDue(source.lastSyncedAt)
+        : Date.now() - last >= source.intervalMinutes * 60_000;
     if (!due) continue;
     if (
       source.platform === "linuxdo" &&

@@ -129,6 +129,8 @@ export function authorFrom(
           ? "IDCFlare 社区"
           : platform === "gitlab"
             ? "GitLab 官方"
+            : platform === "github"
+              ? "GitHub 仓库所有者"
             : "未知作者"),
     handle,
   };
@@ -141,6 +143,8 @@ const avatarBaseUrl = (platform?: Platform) =>
       ? "https://idcflare.com"
       : platform === "gitlab"
         ? "https://about.gitlab.com"
+        : platform === "github"
+          ? "https://github.com"
         : undefined;
 
 const normalizeAvatarUrl = (
@@ -410,7 +414,9 @@ export const platformLabel = (platform: Platform) =>
         ? "Linux.do"
         : platform === "idcflare"
           ? "IDCFlare"
-          : "GitLab";
+          : platform === "gitlab"
+            ? "GitLab"
+            : "GitHub";
 
 export const stripHtml = (value: string): string =>
   value

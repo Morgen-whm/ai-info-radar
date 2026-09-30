@@ -27,6 +27,7 @@ const platformLabels: Record<Platform, string> = {
   linuxdo: "Linux.do",
   idcflare: "IDCFlare",
   gitlab: "GitLab",
+  github: "GitHub",
 };
 
 function calculateSuccessRate(jobs: CollectionJob[]): number {
@@ -82,9 +83,10 @@ export default async function DashboardPage() {
     platformCounts.youtube +
     platformCounts.linuxdo +
     platformCounts.idcflare +
-    platformCounts.gitlab;
+    platformCounts.gitlab +
+    platformCounts.github;
   const signalRows = (
-    ["x", "youtube", "linuxdo", "idcflare", "gitlab"] as const
+    ["x", "youtube", "linuxdo", "idcflare", "gitlab", "github"] as const
   ).map((platform) => ({
     platform,
     label: platformLabels[platform],
@@ -133,7 +135,7 @@ export default async function DashboardPage() {
           </div>
           <h1>实时 AI 情报雷达</h1>
           <p>
-            聚合 X、YouTube、Linux.do、IDCFlare 与 GitLab，把大模型、Codex、VPS、U
+            聚合 X、YouTube、Linux.do、IDCFlare、GitLab 与 GitHub，把大模型、Codex、VPS、U
             币和开发安全等碎片信息变成可追踪、可解释的热点。
           </p>
           <div className="hero-actions">
@@ -156,6 +158,7 @@ export default async function DashboardPage() {
           <span className="radar-node node-linux">L</span>
           <span className="radar-node node-idcflare">IF</span>
           <span className="radar-node node-gitlab">GL</span>
+          <span className="radar-node node-github">GH</span>
           <div className="radar-caption">
             <strong>{activeSources}</strong>
             <span>活跃数据源</span>
@@ -267,7 +270,11 @@ export default async function DashboardPage() {
         />
         <div className="content-grid">
           {topItems.map((item) => (
-            <ContentCard item={item} key={item.id} />
+            <ContentCard
+              item={item}
+              key={item.id}
+              candidateEnabled={usingStoredData}
+            />
           ))}
         </div>
       </section>

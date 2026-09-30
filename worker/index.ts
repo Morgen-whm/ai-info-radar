@@ -15,8 +15,23 @@ interface Env {
   AI_BASE_URL?: string;
   AI_API_KEY?: string;
   AI_MODEL?: string;
+  WECHAT_APP_ID?: string;
+  WECHAT_APP_SECRET?: string;
+  WECHAT_AUTHOR?: string;
+  WECHAT_IMAGE_HOSTS?: string;
+  GITHUB_API_BASE_URL?: string;
+  GITHUB_TOKEN?: string;
   CRON_SECRET?: string;
   WEEKLY_API_KEY?: string;
+  FEISHU_APP_ID?: string;
+  FEISHU_APP_SECRET?: string;
+  FEISHU_WIKI_SPACE_ID?: string;
+  FEISHU_WIKI_PARENT_NODE_TOKEN?: string;
+  FEISHU_FOLDER_TOKEN?: string;
+  FEISHU_TENANT_DOMAIN?: string;
+  FEISHU_DAILY_DOCUMENT_ID?: string;
+  FEISHU_DAILY_WIKI_NODE_TOKEN?: string;
+  FEISHU_DAILY_DOCUMENT_TITLE?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {

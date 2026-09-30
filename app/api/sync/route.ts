@@ -35,7 +35,8 @@ export async function POST(request: Request) {
     const isPublicSource =
       source.platform === "linuxdo" ||
       source.platform === "idcflare" ||
-      source.platform === "gitlab";
+      source.platform === "gitlab" ||
+      source.platform === "github";
     if (!isPublicSource && !canUsePersonalKey && !canUseServerKey) {
       return Response.json(
         { error: "请先在设置中配置个人 TikHub API Key，再执行真实采集" },

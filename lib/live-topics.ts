@@ -91,7 +91,8 @@ const scoreItem = (item: ContentItem, now: number): RankedItem => {
     )
       ? 20
       : 0;
-  const officialBonus = item.platform === "gitlab" ? 7 : 0;
+  const officialBonus =
+    item.platform === "gitlab" ? 7 : item.platform === "github" ? 9 : 0;
   const score = clamp(
     item.hotScore * 0.55 +
       freshness * 0.2 +
@@ -423,7 +424,9 @@ export async function getLiveTopics(options?: {
       (entry) =>
         entry.item.hotScore >= 38 &&
         entry.score >= 32 &&
-        (entry.topics.length > 0 || entry.item.platform === "gitlab"),
+        (entry.topics.length > 0 ||
+          entry.item.platform === "gitlab" ||
+          entry.item.platform === "github"),
     );
   return balancedTopics(clusterItems(ranked), limit).map(clusterToTopic);
 }

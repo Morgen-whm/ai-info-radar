@@ -34,7 +34,7 @@ test("server-renders the TrendHub dashboard", async () => {
   const html = await response.text();
   assert.match(html, /<title>实时总览 · TrendHub<\/title>/i);
   assert.match(html, /实时 AI 情报雷达/);
-  assert.match(html, /X、YouTube、Linux\.do、IDCFlare 与 GitLab/);
+  assert.match(html, /X、YouTube、Linux\.do、IDCFlare、GitLab 与 GitHub/);
   assert.match(html, /Codex/);
   assert.match(html, /AI 摘要/);
   assert.match(html, /AI Builder Watch 的头像/);
@@ -50,8 +50,11 @@ test("server-renders the main product routes", async () => {
   const worker = await loadWorker();
   for (const [path, expected] of [
     ["/feed", "实时信息流"],
+    ["/search", "你想研究什么话题"],
     ["/topics", "热点话题"],
     ["/weekly", "AI 周报"],
+    ["/review", "内容审核中心"],
+    ["/knowledge", "把一手信息，整理成真正能用的知识"],
     ["/sources", "一键采集全部"],
     ["/jobs", "采集任务"],
     ["/settings", "系统设置"],

@@ -15,6 +15,7 @@ export async function GET() {
       linuxdo: true,
       idcflare: true,
       gitlab: true,
+      github: true,
       aiSummary: Boolean(env.AI_API_KEY),
     },
     database: Boolean(env.DB),

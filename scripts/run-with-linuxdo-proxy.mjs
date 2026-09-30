@@ -7,16 +7,24 @@ const proxy = spawn(process.execPath, ["scripts/linuxdo-rss-proxy.mjs"], {
   env: process.env,
   stdio: "inherit",
 });
-const vinext = spawn(join(process.cwd(), "node_modules", ".bin", "vinext"), [
-  command,
-], {
+const vinextArguments = [command];
+const vinextHostname = process.env.VINEXT_HOSTNAME?.trim();
+if (vinextHostname) {
+  vinextArguments.push("--hostname", vinextHostname);
+}
+
+const vinext = spawn(
+  join(process.cwd(), "node_modules", ".bin", "vinext"),
+  vinextArguments,
+  {
   cwd: process.cwd(),
   env: {
     ...process.env,
     WRANGLER_LOG_PATH: ".wrangler/wrangler.log",
   },
   stdio: "inherit",
-});
+  },
+);
 
 let stopping = false;
 function stop(exitCode = 0) {

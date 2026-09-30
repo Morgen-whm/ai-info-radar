@@ -285,6 +285,7 @@ export async function fetchTikHubSource(
       params = {
         keyword: source.target,
         upload_date: config.timeRange,
+        type: "video",
         sort_by: config.sortBy,
         language_code: config.languageCode,
         country_code: config.countryCode,

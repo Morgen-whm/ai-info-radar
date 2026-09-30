@@ -9,6 +9,7 @@ const platformInitials: Record<Platform, string> = {
   linuxdo: "L",
   idcflare: "I",
   gitlab: "G",
+  github: "GH",
 };
 
 export function AuthorAvatar({

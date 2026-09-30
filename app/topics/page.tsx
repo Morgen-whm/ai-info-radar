@@ -30,6 +30,8 @@ const sourceLabel = (platform: Topic["platforms"][number]) => {
       return "IDCFlare 原文";
     case "gitlab":
       return "GitLab 官方内容";
+    case "github":
+      return "GitHub 仓库";
   }
 };
 

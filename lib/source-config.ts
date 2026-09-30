@@ -56,7 +56,8 @@ export function getSourceCollectionConfig(
   const isPublicFeed =
     source.platform === "linuxdo" ||
     source.platform === "idcflare" ||
-    source.platform === "gitlab";
+    source.platform === "gitlab" ||
+    source.platform === "github";
   const supportsPages =
     !isPublicFeed &&
     source.kind !== "trending" &&
@@ -110,7 +111,8 @@ export function sanitizeSourceConfig(
   if (
     platform === "linuxdo" ||
     platform === "idcflare" ||
-    platform === "gitlab"
+    platform === "gitlab" ||
+    platform === "github"
   ) {
     return {
       maxItems: normalized.maxItems,

@@ -1,5 +1,6 @@
 import { createSource, listSources } from "@/db/repository";
 import { isValidGitLabTarget } from "@/lib/connectors/gitlab";
+import { isValidGitHubTarget } from "@/lib/connectors/github";
 import { isValidIdcFlareTarget } from "@/lib/connectors/idcflare";
 import { sanitizeSourceConfig } from "@/lib/source-config";
 import type { Platform, SourceKind } from "@/lib/types";
@@ -12,6 +13,7 @@ const allowedPlatforms: Platform[] = [
   "linuxdo",
   "idcflare",
   "gitlab",
+  "github",
 ];
 const allowedKinds: SourceKind[] = [
   "trending",
@@ -70,6 +72,12 @@ export async function POST(request: Request) {
   if (platform === "gitlab" && !isValidGitLabTarget(target)) {
     return Response.json(
       { error: "GitLab 数据源必须使用允许的官方 RSS 地址" },
+      { status: 400 },
+    );
+  }
+  if (platform === "github" && !isValidGitHubTarget(target)) {
+    return Response.json(
+      { error: "GitHub 增长榜目标必须为 github://ai-star-growth" },
       { status: 400 },
     );
   }

@@ -1,0 +1,1 @@
+ALTER TABLE `content_reviews` ADD `editorial_pipeline_json` text DEFAULT '{}' NOT NULL;

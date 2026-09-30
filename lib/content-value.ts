@@ -227,7 +227,19 @@ export function calculateContentValueScore(input: ContentValueInput): number {
     (solicitation ? 20 : 0) +
     (engagementBait ? 12 : 0) +
     (input.title.length < 12 && input.body.length < 30 ? 18 : 0);
-  const officialSourceBonus = input.platform === "gitlab" ? 18 : 0;
+  const officialSourceBonus =
+    input.platform === "gitlab" ? 18 : input.platform === "github" ? 12 : 0;
+  const githubGrowth = Math.max(
+    finite(input.metrics.starGrowth24h),
+    finite(input.metrics.starGrowth7d) / 7,
+  );
+  const githubGrowthBonus =
+    input.platform === "github"
+      ? clamp(
+          (Math.log10(githubGrowth + 1) / 3) * 18 +
+            finite(input.metrics.starGrowthRate) * 30,
+        )
+      : 0;
 
   return Math.round(
     clamp(
@@ -239,20 +251,26 @@ export function calculateContentValueScore(input: ContentValueInput): number {
         completenessScore * 0.09 +
         newsworthinessScore * 0.12 -
         qualityPenalty +
-        officialSourceBonus,
+        officialSourceBonus +
+        githubGrowthBonus * 0.28,
     ),
   );
 }
 
 export function recommendationScore(
-  item: Pick<ContentItem, "hotScore" | "publishedAt">,
+  item: Pick<ContentItem, "hotScore" | "publishedAt" | "metrics" | "tags">,
 ): number {
   const ageHours = Math.max(
     0,
     (Date.now() - new Date(item.publishedAt).getTime()) / 3_600_000,
   );
   const recencyBoost = Math.max(0, 15 * Math.exp(-ageHours / 30));
-  return item.hotScore + recencyBoost;
+  const dailyStarGrowth = finite(item.metrics.starGrowth24h);
+  const weeklyDailyAverage = finite(item.metrics.starGrowth7d) / 7;
+  const starGrowth = Math.max(dailyStarGrowth, weeklyDailyAverage);
+  const starGrowthBoost = Math.min(18, Math.log10(starGrowth + 1) * 6);
+  const explosiveBoost = item.tags.includes("爆发增长") ? 8 : 0;
+  return item.hotScore + recencyBoost + starGrowthBoost + explosiveBoost;
 }
 
 const compact = (value: number) =>
@@ -267,6 +285,14 @@ export function getValueReasons(
 ): string[] {
   const reasons: string[] = [];
   if (item.platform === "gitlab") reasons.push("GitLab 官方源");
+  if (item.platform === "github") {
+    const dailyGrowth = finite(item.metrics.starGrowth24h);
+    const weeklyGrowth = finite(item.metrics.starGrowth7d);
+    if (item.tags.includes("爆发增长")) reasons.push("爆发性增长");
+    if (dailyGrowth > 0) reasons.push(`昨日 +${compact(dailyGrowth)} Star`);
+    else if (weeklyGrowth > 0) reasons.push(`上周 +${compact(weeklyGrowth)} Star`);
+    else reasons.push("GitHub 官方数据");
+  }
   const topics = matchedValueTopics(item);
   if (topics.length) reasons.push(`命中 ${topics.slice(0, 2).join("、")}`);
 

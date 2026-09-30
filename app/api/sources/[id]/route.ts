@@ -1,5 +1,6 @@
 import { deleteSource, getSource, updateSource } from "@/db/repository";
 import { isValidGitLabTarget } from "@/lib/connectors/gitlab";
+import { isValidGitHubTarget } from "@/lib/connectors/github";
 import { isValidIdcFlareTarget } from "@/lib/connectors/idcflare";
 import { sanitizeSourceConfig } from "@/lib/source-config";
 
@@ -41,6 +42,16 @@ export async function PATCH(
   ) {
     return Response.json(
       { error: "GitLab 数据源必须使用允许的官方 RSS 地址" },
+      { status: 400 },
+    );
+  }
+  if (
+    target !== undefined &&
+    existing.platform === "github" &&
+    !isValidGitHubTarget(target)
+  ) {
+    return Response.json(
+      { error: "GitHub 增长榜目标必须为 github://ai-star-growth" },
       { status: 400 },
     );
   }

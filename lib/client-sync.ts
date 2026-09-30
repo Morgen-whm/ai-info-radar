@@ -1,4 +1,5 @@
 import type { Source } from "./types";
+import { readCollectionResponse, type CollectionProgress } from "./collection-progress";
 
 const localProxyUrl = "http://127.0.0.1:4317/rss";
 const localHostnames = new Set(["localhost", "127.0.0.1", "::1"]);
@@ -17,6 +18,7 @@ export async function loadLinuxRss(source: Source): Promise<string | undefined> 
     url.searchParams.set("url", source.target);
     const response = await fetch(url, {
       headers: { Accept: "application/rss+xml" },
+      signal: AbortSignal.timeout(35_000),
     });
     if (!response.ok) return undefined;
     const xml = await response.text();
@@ -41,4 +43,37 @@ export async function loadLinuxFeeds(
       }),
   );
   return feeds;
+}
+
+export async function collectAllSources(
+  linuxFeeds: Record<string, string>,
+  onProgress: (progress: CollectionProgress) => void,
+) {
+  const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout>;
+  const resetTimeout = () => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => controller.abort(), 90_000);
+  };
+  resetTimeout();
+  try {
+    const response = await fetch("/api/sync/all", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/x-ndjson",
+      },
+      body: JSON.stringify({ linuxFeeds }),
+      signal: controller.signal,
+      cache: "no-store",
+    });
+    return await readCollectionResponse(response, onProgress, resetTimeout);
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error("采集进度连接超时，后台可能仍在处理；请查看采集任务，勿重复提交");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout!);
+  }
 }
